@@ -755,7 +755,7 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 		settings.vsync = true;
 	}
 	if (commandLineParser.isSet("height")) {
-		height = commandLineParser.getValueAsInt("height", width);
+		height = commandLineParser.getValueAsInt("height", height);
 	}
 	if (commandLineParser.isSet("width")) {
 		width = commandLineParser.getValueAsInt("width", width);
@@ -2858,5 +2858,4 @@ int32_t CommandLineParser::getValueAsInt(std::string name, int32_t defaultValue)
 	} else {
 		return defaultValue;
 	}
-	return int32_t();
 }
