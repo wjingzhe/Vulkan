@@ -374,7 +374,7 @@ public:
 	/** @brief (Virtual) Called when the window has been resized, can be used by the sample application to recreate resources */
 	virtual void windowResized();
 	/** @brief (Virtual) Called when resources have been recreated that require a rebuild of the command buffers (e.g. frame buffer), to be implemented by the sample application */
-	virtual void buildCommandBuffers();
+	virtual void buildCommandBuffersForPreRenderPrmitives();
 	/** @brief (Virtual) Setup default depth and stencil views */
 	virtual void setupDepthStencil();
 	/** @brief (Virtual) Setup default framebuffers for all requested swapchain images */
@@ -385,7 +385,7 @@ public:
 	virtual void getEnabledFeatures();
 
 	/** @brief Prepares all Vulkan resources and functions required to run the sample */
-	virtual void prepare();
+	virtual void prepareForRendering();
 
 	/** @brief Loads a SPIR-V shader file for the given shader stage */
 	VkPipelineShaderStageCreateInfo loadShader(std::string fileName, VkShaderStageFlagBits stage);
@@ -426,7 +426,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int)									\
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow(hInstance, WndProc);													\
-	vulkanExample->prepare();																		\
+	vulkanExample->prepareForRendering();																		\
 	vulkanExample->renderLoop();																	\
 	delete(vulkanExample);																			\
 	return 0;																						\
@@ -458,7 +458,7 @@ int main(const int argc, const char *argv[])													    \
 	for (size_t i = 0; i < argc; i++) { VulkanExample::args.push_back(argv[i]); };  				\
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
-	vulkanExample->prepare();																		\
+	vulkanExample->prepareForRendering();																		\
 	vulkanExample->renderLoop();																	\
 	delete(vulkanExample);																			\
 	return 0;																						\
@@ -479,7 +479,7 @@ int main(const int argc, const char *argv[])													    \
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow();					 												\
-	vulkanExample->prepare();																		\
+	vulkanExample->prepareForRendering();																		\
 	vulkanExample->renderLoop();																	\
 	delete(vulkanExample);																			\
 	return 0;																						\
@@ -493,7 +493,7 @@ int main(const int argc, const char *argv[])													    \
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow();					 												\
-	vulkanExample->prepare();																		\
+	vulkanExample->prepareForRendering();																		\
 	vulkanExample->renderLoop();																	\
 	delete(vulkanExample);																			\
 	return 0;																						\
@@ -514,7 +514,7 @@ int main(const int argc, const char *argv[])													    \
 	vulkanExample = new VulkanExample();															\
 	vulkanExample->initVulkan();																	\
 	vulkanExample->setupWindow();					 												\
-	vulkanExample->prepare();																		\
+	vulkanExample->prepareForRendering();																		\
 	vulkanExample->renderLoop();																	\
 	delete(vulkanExample);																			\
 	return 0;																						\
@@ -531,7 +531,7 @@ int main(const int argc, const char *argv[])														\
 		vulkanExample = new VulkanExample();														\
 		vulkanExample->initVulkan();																\
 		vulkanExample->setupWindow(nullptr);														\
-		vulkanExample->prepare();																	\
+		vulkanExample->prepareForRendering();																	\
 		vulkanExample->renderLoop();																\
 		delete(vulkanExample);																		\
 	}																								\

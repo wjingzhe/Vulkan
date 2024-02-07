@@ -104,7 +104,7 @@ public:
 		}
 	};
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -195,7 +195,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0 : Vertex shader uniform buffer
@@ -211,7 +211,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo descripotrSetAllocInfo;
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
@@ -455,17 +455,17 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareInstanceData();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

@@ -291,7 +291,7 @@ public:
 		ktxTexture_Destroy(ktxTexture);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -372,7 +372,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		const std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0 : Uniform buffer
@@ -506,16 +506,16 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -539,10 +539,10 @@ public:
 				updateUniformBuffers();
 			}
 			if (overlay->comboBox("Object type", &models.objectIndex, objectNames)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->checkBox("Skybox", &displaySkybox)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

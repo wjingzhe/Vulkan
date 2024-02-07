@@ -452,7 +452,7 @@ public:
 		DebugMarker::setObjectName(device, (uint64_t)sceneGlow.model.indices.buffer, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT, "Glow index buffer");
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 		VkClearValue clearValues[2];
@@ -599,7 +599,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0 : Vertex shader uniform buffer
@@ -618,7 +618,7 @@ public:
 		DebugMarker::setObjectName(device, (uint64_t)descriptorSetLayout, VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT_EXT, "Shared descriptor set layout");
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSets.scene));
@@ -753,18 +753,18 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		DebugMarker::setup(device, physicalDevice);
 		loadAssets();
 		prepareOffscreen();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -785,11 +785,11 @@ public:
 		}
 		if (overlay->header("Settings")) {
 			if (overlay->checkBox("Glow", &glow)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (deviceFeatures.fillModeNonSolid) {
 				if (overlay->checkBox("Wireframe", &wireframe)) {
-					buildCommandBuffers();
+					buildCommandBuffersForPreRenderPrmitives();
 				}
 			}
 		}

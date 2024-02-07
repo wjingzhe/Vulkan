@@ -427,7 +427,7 @@ public:
 		VK_CHECK_RESULT(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -538,7 +538,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Deferred shading layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
@@ -566,7 +566,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayouts.offscreen));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 
@@ -877,18 +877,18 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		initLights();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
+		setupDescriptorSetAndUpdate();
 		prepareCompositionPass();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

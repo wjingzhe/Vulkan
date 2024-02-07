@@ -86,7 +86,7 @@ public:
 		}
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -168,7 +168,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
@@ -180,7 +180,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
@@ -463,16 +463,16 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelineLibrary();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 
 		// Create a separate pipeline cache for the pipeline creation thread
 		VkPipelineCacheCreateInfo pipelineCachCI = {};
@@ -494,7 +494,7 @@ public:
 		{
 			newPipelineCreated = false;
 			vkQueueWaitIdle(queue);
-			buildCommandBuffers();
+			buildCommandBuffersForPreRenderPrmitives();
 		}
 		draw();
 		updateUniformBuffers();

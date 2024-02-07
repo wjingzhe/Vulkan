@@ -335,7 +335,7 @@ public:
 		}
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		/*
 			View display
@@ -661,15 +661,15 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareMultiview();
 		prepareUniformBuffers();
 		prepareDescriptors();
 		preparePipelines();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 
 		VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
 		multiviewPass.waitFences.resize(multiviewPass.commandBuffers.size());

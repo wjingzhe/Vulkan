@@ -717,7 +717,7 @@ public:
 	/*
 		Command buffer generation
 	*/
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		if (resized)
 		{
@@ -843,9 +843,9 @@ public:
 		deviceCreatepNextChain = &enabledAccelerationStructureFeatures;
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 
 		// Get ray tracing pipeline properties, which will be used later on in the sample
 		rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
@@ -882,7 +882,7 @@ public:
 		createRayTracingPipeline();
 		createShaderBindingTable();
 		createDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

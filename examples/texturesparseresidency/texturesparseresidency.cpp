@@ -488,7 +488,7 @@ void VulkanExample::destroyTextureImage(SparseTexture texture)
 	texture.destroy();
 }
 
-void VulkanExample::buildCommandBuffers()
+void VulkanExample::buildCommandBuffersForPreRenderPrmitives()
 {
 	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -564,7 +564,7 @@ void VulkanExample::setupDescriptorPool()
 	VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 }
 
-void VulkanExample::setupDescriptorSetLayout()
+void VulkanExample::setupDescriptorSetLayoutAndPipelineLayout()
 {
 	std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
 	{
@@ -595,7 +595,7 @@ void VulkanExample::setupDescriptorSetLayout()
 	VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 }
 
-void VulkanExample::setupDescriptorSet()
+void VulkanExample::setupDescriptorSetAndUpdate()
 {
 	VkDescriptorSetAllocateInfo allocInfo =
 		vks::initializers::descriptorSetAllocateInfo(
@@ -679,9 +679,9 @@ void VulkanExample::updateUniformBuffers()
 	uniformBufferVS.unmap();
 }
 
-void VulkanExample::prepare()
+void VulkanExample::prepareForRendering()
 {
-	VulkanExampleBase::prepare();
+	VulkanExampleBase::prepareForRendering();
 	// Check if the GPU supports sparse residency for 2D images
 	if (!vulkanDevice->features.sparseResidencyImage2D) {
 		vks::tools::exitFatal("Device does not support sparse residency for 2D images!", VK_ERROR_FEATURE_NOT_PRESENT);
@@ -690,11 +690,11 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	// Create a virtual texture with max. possible dimension (does not take up any VRAM yet)
 	prepareSparseTexture(4096, 4096, 1, VK_FORMAT_R8G8B8A8_UNORM);
-	setupDescriptorSetLayout();
+	setupDescriptorSetLayoutAndPipelineLayout();
 	preparePipelines();
 	setupDescriptorPool();
-	setupDescriptorSet();
-	buildCommandBuffers();
+	setupDescriptorSetAndUpdate();
+	buildCommandBuffersForPreRenderPrmitives();
 	prepared = true;
 }
 

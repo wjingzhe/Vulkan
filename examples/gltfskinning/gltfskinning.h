@@ -224,13 +224,13 @@ class VulkanExample : public VulkanExampleBase
 	~VulkanExample();
 	void         loadglTFFile(std::string filename);
 	virtual void getEnabledFeatures();
-	void         buildCommandBuffers();
+	void         buildCommandBuffersForPreRenderPrmitives();
 	void         loadAssets();
 	void         setupDescriptors();
 	void         preparePipelines();
 	void         prepareUniformBuffers();
 	void         updateUniformBuffers();
-	void         prepare();
+	void         prepareForRendering();
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay);
 };

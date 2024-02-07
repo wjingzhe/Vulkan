@@ -505,7 +505,7 @@ public:
 	/*
 		Command buffer generation
 	*/
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		if (resized)
 		{
@@ -610,7 +610,7 @@ public:
 		deviceCreatepNextChain = &enabledAccelerationStructureFeatures;
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
 		VulkanRaytracingSample::prepare();
 
@@ -623,7 +623,7 @@ public:
 		createRayTracingPipeline();
 		createShaderBindingTables();
 		createDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

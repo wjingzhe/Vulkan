@@ -227,7 +227,7 @@ public:
 		instancesBuffer.destroy();
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -297,7 +297,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Shared pipeline layout for all pipelines used in this sample
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -449,18 +449,18 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
 		VulkanRaytracingSample::prepare();
 		loadAssets();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		createBottomLevelAccelerationStructure();
 		createTopLevelAccelerationStructure();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

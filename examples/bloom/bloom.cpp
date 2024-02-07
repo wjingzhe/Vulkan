@@ -9,7 +9,7 @@
 #include "vulkanexamplebase.h"
 #include "VulkanglTFModel.h"
 
-#define ENABLE_VALIDATION false
+#define ENABLE_VALIDATION true
 
 // Offscreen frame buffer properties
 #define FB_DIM 256
@@ -328,7 +328,7 @@ public:
 		prepareOffscreenFramebuffer(&offscreenPass.framebuffers[1], FB_COLOR_FORMAT, fbDepthFormat);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -426,10 +426,10 @@ public:
 
 				VkDeviceSize offsets[1] = { 0 };
 
-				// Skybox
-				vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.scene, 0, 1, &descriptorSets.skyBox, 0, NULL);
-				vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skyBox);
-				models.skyBox.draw(drawCmdBuffers[i]);
+				//// Skybox
+				//vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayouts.scene, 0, 1, &descriptorSets.skyBox, 0, NULL);
+				//vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.skyBox);
+				//models.skyBox.draw(drawCmdBuffers[i]);
 
 
 				// 3D scene
@@ -473,7 +473,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo;
@@ -502,7 +502,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &pipelineLayouts.scene));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo descriptorSetAllocInfo;
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
@@ -544,9 +544,10 @@ public:
 
 	void preparePipelines()
 	{
+		VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+
 		VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateCI = vks::initializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 		VkPipelineRasterizationStateCreateInfo rasterizationStateCI = vks::initializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
-		VkPipelineColorBlendAttachmentState blendAttachmentState = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
 		VkPipelineColorBlendStateCreateInfo colorBlendStateCI = vks::initializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 		VkPipelineDepthStencilStateCreateInfo depthStencilStateCI = vks::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 		VkPipelineViewportStateCreateInfo viewportStateCI = vks::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
@@ -692,17 +693,17 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		prepareOffscreen();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -721,7 +722,7 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			if (overlay->checkBox("Bloom", &bloom)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->inputFloat("Scale", &ubos.blurParams.blurScale, 0.1f, 2)) {
 				updateUniformBuffersBlur();

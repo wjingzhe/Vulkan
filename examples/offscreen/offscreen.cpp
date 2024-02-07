@@ -299,7 +299,7 @@ public:
 		offscreenPass.descriptor.sampler = offscreenPass.sampler;
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -417,7 +417,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 		VkDescriptorSetLayoutCreateInfo descriptorLayoutInfo;
@@ -454,7 +454,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayouts.textured));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		// Mirror plane descriptor set
 		VkDescriptorSetAllocateInfo allocInfo =
@@ -642,17 +642,17 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareOffscreen();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -675,7 +675,7 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			if (overlay->checkBox("Display render target", &debugDisplay)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

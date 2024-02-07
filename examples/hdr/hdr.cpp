@@ -147,7 +147,7 @@ public:
 		textures.envmap.destroy();
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -593,7 +593,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0),
@@ -738,7 +738,7 @@ public:
 		pipelineCI.layout = pipelineLayouts.composition;
 		pipelineCI.renderPass = renderPass;
 		rasterizationState.cullMode = VK_CULL_MODE_NONE;
-		colorBlendState.attachmentCount = 1;
+		colorBlendState.attachmentCount = 2;
 		colorBlendState.pAttachments = blendAttachmentStates.data();
 		shaderStages[0] = loadShader(getShadersPath() + "hdr/composition.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "hdr/composition.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -747,6 +747,7 @@ public:
 		// Bloom pass
 		shaderStages[0] = loadShader(getShadersPath() + "hdr/bloom.vert.spv", VK_SHADER_STAGE_VERTEX_BIT);
 		shaderStages[1] = loadShader(getShadersPath() + "hdr/bloom.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT);
+		colorBlendState.attachmentCount = 1;
 		colorBlendState.pAttachments = &blendAttachmentState;
 		blendAttachmentState.colorWriteMask = 0xF;
 		blendAttachmentState.blendEnable = VK_TRUE;
@@ -847,17 +848,17 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		prepareoffscreenfer();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -875,16 +876,16 @@ public:
 		if (overlay->header("Settings")) {
 			if (overlay->comboBox("Object type", &models.objectIndex, objectNames)) {
 				updateUniformBuffers();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->inputFloat("Exposure", &uboParams.exposure, 0.025f, 3)) {
 				updateParams();
 			}
 			if (overlay->checkBox("Bloom", &bloom)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->checkBox("Skybox", &displaySkybox)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

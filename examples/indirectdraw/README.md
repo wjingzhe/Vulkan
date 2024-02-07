@@ -75,7 +75,7 @@ To use a buffer for indirect draw commands you need to specify the ```VK_BUFFER_
 ### Rendering
 If the [`multiDrawIndirect`](http://vulkan.gpuinfo.org/listreports.php?feature=multiDrawIndirect) is supported, we can issue all indirect draws with one single draw call:
 ```cpp
-void buildCommandBuffers()
+void buildCommandBuffersForPreRenderPrmitives()
 {
   ...
   for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)

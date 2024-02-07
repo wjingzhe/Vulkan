@@ -127,7 +127,7 @@ public:
 	VulkanExample();
 	~VulkanExample();
 	virtual void getEnabledFeatures();
-	void buildCommandBuffers();
+	void buildCommandBuffersForPreRenderPrmitives();
 	void uploadVertexData();
 	void loadglTFFile(std::string filename);
 	void loadAssets();
@@ -135,7 +135,7 @@ public:
 	void preparePipelines();
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
-	void prepare();
+	void prepareForRendering();
 	void loadSceneNode(const tinygltf::Node& inputNode, const tinygltf::Model& input, Node* parent);
 	void drawSceneNode(VkCommandBuffer commandBuffer, Node node);
 	virtual void render();

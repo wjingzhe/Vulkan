@@ -51,7 +51,7 @@ public:
 	} indirectStats;
 
 	// Store the indirect draw commands containing index offsets and instance count per object
-	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
+	std::vector<VkDrawIndexedIndirectCommand> drawIndirectCommands;
 
 	struct {
 		glm::mat4 projection;
@@ -127,7 +127,7 @@ public:
 		}
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -169,12 +169,12 @@ public:
 
 			if (vulkanDevice->features.multiDrawIndirect)
 			{
-				vkCmdDrawIndexedIndirect(drawCmdBuffers[i], indirectCommandsBuffer.buffer, 0, indirectCommands.size(), sizeof(VkDrawIndexedIndirectCommand));
+				vkCmdDrawIndexedIndirect(drawCmdBuffers[i], indirectCommandsBuffer.buffer, 0, drawIndirectCommands.size(), sizeof(VkDrawIndexedIndirectCommand));
 			}
 			else
 			{
 				// If multi draw is not available, we must issue separate draw commands
-				for (auto j = 0; j < indirectCommands.size(); j++)
+				for (auto j = 0; j < drawIndirectCommands.size(); j++)
 				{
 					vkCmdDrawIndexedIndirect(drawCmdBuffers[i], indirectCommandsBuffer.buffer, j * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
 				}
@@ -258,7 +258,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0: Vertex shader uniform buffer
@@ -271,7 +271,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
@@ -352,7 +352,7 @@ public:
 		vks::Buffer stagingBuffer;
 
 		std::vector<InstanceData> instanceData(objectCount);
-		indirectCommands.resize(objectCount);
+		drawIndirectCommands.resize(objectCount);
 
 		// Indirect draw commands
 		for (uint32_t x = 0; x < OBJECT_COUNT; x++)
@@ -362,21 +362,21 @@ public:
 				for (uint32_t z = 0; z < OBJECT_COUNT; z++)
 				{
 					uint32_t index = x + y * OBJECT_COUNT + z * OBJECT_COUNT * OBJECT_COUNT;
-					indirectCommands[index].instanceCount = 1;
-					indirectCommands[index].firstInstance = index;
+					drawIndirectCommands[index].instanceCount = 1;
+					drawIndirectCommands[index].firstInstance = index;
 					// firstIndex and indexCount are written by the compute shader
 				}
 			}
 		}
 
-		indirectStats.drawCount = static_cast<uint32_t>(indirectCommands.size());
+		indirectStats.drawCount = static_cast<uint32_t>(drawIndirectCommands.size());
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&stagingBuffer,
-			indirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand),
-			indirectCommands.data()));
+			drawIndirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand),
+			drawIndirectCommands.data()));
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -513,12 +513,12 @@ public:
 				4),
 		};
 
-		VkDescriptorSetLayoutCreateInfo descriptorLayout =
+		VkDescriptorSetLayoutCreateInfo descriptorLayoutCreateInfo =
 			vks::initializers::descriptorSetLayoutCreateInfo(
 				setLayoutBindings.data(),
 				static_cast<uint32_t>(setLayoutBindings.size()));
 
-		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayout, nullptr, &compute.descriptorSetLayout));
+		VK_CHECK_RESULT(vkCreateDescriptorSetLayout(device, &descriptorLayoutCreateInfo, nullptr, &compute.descriptorSetLayout));
 
 		VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo =
 			vks::initializers::pipelineLayoutCreateInfo(
@@ -580,9 +580,7 @@ public:
 		specializationEntry.constantID = 0;
 		specializationEntry.offset = 0;
 		specializationEntry.size = sizeof(uint32_t);
-
 		uint32_t specializationData = static_cast<uint32_t>(lodModel.nodes.size()) - 1;
-
 		VkSpecializationInfo specializationInfo;
 		specializationInfo.mapEntryCount = 1;
 		specializationInfo.pMapEntries = &specializationEntry;
@@ -683,17 +681,17 @@ public:
 		memcpy(&indirectStats, indirectDrawCountBuffer.mapped, sizeof(indirectStats));
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
+		setupDescriptorSetAndUpdate();
 		prepareCompute();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

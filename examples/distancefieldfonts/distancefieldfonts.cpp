@@ -187,7 +187,7 @@ public:
 		textures.fontBitmap.loadFromFile(getAssetPath() + "textures/font_bitmap_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -373,7 +373,7 @@ public:
 		assert(!vkRes);
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings =
 		{
@@ -409,7 +409,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo =
 			vks::initializers::descriptorSetAllocateInfo(
@@ -618,19 +618,19 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		parsebmFont();
 		loadAssets();
 		generateText("Vulkan");
 		setupVertexDescriptions();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -656,7 +656,7 @@ public:
 			}
 			if (overlay->checkBox("Splitscreen", &splitScreen)) {
 				camera.setPerspective(splitScreen ? 30.0f : 45.0f, (float)width / (float)(height * ((splitScreen) ? 0.5f : 1.0f)), 1.0f, 256.0f);
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 				updateUniformBuffers();
 			}
 		}

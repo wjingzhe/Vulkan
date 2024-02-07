@@ -673,7 +673,7 @@ void VulkanExample::getEnabledFeatures()
 	};
 }
 
-void VulkanExample::buildCommandBuffers()
+void VulkanExample::buildCommandBuffersForPreRenderPrmitives()
 {
 	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -970,14 +970,14 @@ void VulkanExample::loadAssets()
 	loadglTFFile(getAssetPath() + "models/CesiumMan/glTF/CesiumMan.gltf");
 }
 
-void VulkanExample::prepare()
+void VulkanExample::prepareForRendering()
 {
-	VulkanExampleBase::prepare();
+	VulkanExampleBase::prepareForRendering();
 	loadAssets();
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	buildCommandBuffers();
+	buildCommandBuffersForPreRenderPrmitives();
 	prepared = true;
 }
 
@@ -1001,7 +1001,7 @@ void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->checkBox("Wireframe", &wireframe))
 		{
-			buildCommandBuffers();
+			buildCommandBuffersForPreRenderPrmitives();
 		}
 	}
 }

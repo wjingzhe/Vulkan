@@ -148,7 +148,7 @@ public:
 		}
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -1389,9 +1389,9 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		generateBRDFLUT();
 		generateIrradianceCube();
@@ -1399,7 +1399,7 @@ public:
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -1419,11 +1419,11 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			if (overlay->comboBox("Material", &materialIndex, materialNames)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->comboBox("Object type", &models.objectIndex, objectNames)) {
 				updateUniformBuffers();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->inputFloat("Exposure", &uboParams.exposure, 0.1f, 2)) {
 				updateParams();
@@ -1432,7 +1432,7 @@ public:
 				updateParams();
 			}
 			if (overlay->checkBox("Skybox", &displaySkybox)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

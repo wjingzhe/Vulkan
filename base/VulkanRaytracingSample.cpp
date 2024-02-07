@@ -256,7 +256,7 @@ void VulkanRaytracingSample::deleteStorageImage()
 
 void VulkanRaytracingSample::prepare()
 {
-	VulkanExampleBase::prepare();
+	VulkanExampleBase::prepareForRendering();
 	// Get properties and features
 	rayTracingPipelineProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
 	VkPhysicalDeviceProperties2 deviceProperties2{};

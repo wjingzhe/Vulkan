@@ -153,14 +153,14 @@ public:
 	VulkanExample();
 	~VulkanExample();
 	virtual void getEnabledFeatures();
-	void buildCommandBuffers();
+	void buildCommandBuffersForPreRenderPrmitives();
 	void loadglTFFile(std::string filename);
 	void loadAssets();
 	void setupDescriptors();
 	void preparePipelines();
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
-	void prepare();
+	void prepareForRendering();
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay);
 };

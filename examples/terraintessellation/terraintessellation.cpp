@@ -276,7 +276,7 @@ public:
 		textures.terrainArray.descriptor.sampler = textures.terrainArray.sampler;
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -801,9 +801,9 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		generateTerrain();
 		if (deviceFeatures.pipelineStatisticsQuery) {
@@ -814,7 +814,7 @@ public:
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -840,7 +840,7 @@ public:
 			}
 			if (deviceFeatures.fillModeNonSolid) {
 				if (overlay->checkBox("Wireframe", &wireframe)) {
-					buildCommandBuffers();
+					buildCommandBuffersForPreRenderPrmitives();
 				}
 			}
 		}

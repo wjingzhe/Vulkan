@@ -110,17 +110,17 @@ public:
 		}
 	};
 
-	void prepare() override
+	void prepareForRendering() override
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		prepareGeometryPass();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		updateUniformBuffers();
 		prepared = true;
 	}
@@ -140,7 +140,7 @@ public:
 		setupDescriptorSets();
 
 		resized = false;
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 	}
 
 	void viewChanged() override
@@ -309,7 +309,7 @@ private:
 		VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Create a geometry descriptor set layout.
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -507,7 +507,7 @@ private:
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		if (resized)
 			return;

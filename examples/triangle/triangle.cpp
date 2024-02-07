@@ -28,7 +28,7 @@
 #include "vulkanexamplebase.h"
 
 // Set to "true" to enable Vulkan's validation layers (see vulkandebug.cpp for details)
-#define ENABLE_VALIDATION false
+#define ENABLE_VALIDATION true
 // Set to "true" to use staging buffers for uploading vertex and index data to device local memory
 // See "prepareVertices" for details on what's staging and on why to use it
 #define USE_STAGING true
@@ -256,7 +256,7 @@ public:
 	// Build separate command buffers for every framebuffer image
 	// Unlike in OpenGL all rendering commands are recorded once into command buffers that are then resubmitted to the queue
 	// This allows to generate work upfront and from multiple threads, one of the biggest advantages of Vulkan
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = {};
 		cmdBufInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -563,7 +563,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Setup layout of descriptors used in this example
 		// Basically connects the different shader stages to descriptors for binding uniform buffers, image samplers, etc.
@@ -595,7 +595,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		// Allocate a new descriptor set from the global descriptor pool
 		VkDescriptorSetAllocateInfo allocInfo = {};
@@ -1071,17 +1071,17 @@ public:
 		vkUnmapMemory(device, uniformBufferVS.memory);
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		prepareSynchronizationPrimitives();
 		prepareVertices(USE_STAGING);
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -1119,7 +1119,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLin
 	vulkanExample = new VulkanExample();
 	vulkanExample->initVulkan();
 	vulkanExample->setupWindow(hInstance, WndProc);
-	vulkanExample->prepare();
+	vulkanExample->prepareForRendering();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
 	return 0;
@@ -1151,7 +1151,7 @@ int main(const int argc, const char *argv[])
 	for (size_t i = 0; i < argc; i++) { VulkanExample::args.push_back(argv[i]); };
 	vulkanExample = new VulkanExample();
 	vulkanExample->initVulkan();
-	vulkanExample->prepare();
+	vulkanExample->prepareForRendering();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
 	return 0;
@@ -1171,7 +1171,7 @@ int main(const int argc, const char *argv[])
 	vulkanExample = new VulkanExample();
 	vulkanExample->initVulkan();
 	vulkanExample->setupWindow();
-	vulkanExample->prepare();
+	vulkanExample->prepareForRendering();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
 	return 0;
@@ -1184,7 +1184,7 @@ int main(const int argc, const char *argv[])
 	vulkanExample = new VulkanExample();
 	vulkanExample->initVulkan();
 	vulkanExample->setupWindow();
-	vulkanExample->prepare();
+	vulkanExample->prepareForRendering();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
 	return 0;
@@ -1212,7 +1212,7 @@ int main(const int argc, const char *argv[])
 	vulkanExample = new VulkanExample();
 	vulkanExample->initVulkan();
 	vulkanExample->setupWindow();
-	vulkanExample->prepare();
+	vulkanExample->prepareForRendering();
 	vulkanExample->renderLoop();
 	delete(vulkanExample);
 	return 0;
@@ -1227,7 +1227,7 @@ int main(const int argc, const char *argv[])
 		vulkanExample = new VulkanExample();
 		vulkanExample->initVulkan();
 		vulkanExample->setupWindow(nullptr);
-		vulkanExample->prepare();
+		vulkanExample->prepareForRendering();
 		vulkanExample->renderLoop();
 		delete(vulkanExample);
 	}

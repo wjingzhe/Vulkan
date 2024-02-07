@@ -432,7 +432,7 @@ public:
 		};
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -710,14 +710,14 @@ public:
 		memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		setupDescriptors();
 		preparePipelines();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -733,7 +733,7 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			if (overlay->checkBox("Wireframe", &wireframe)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

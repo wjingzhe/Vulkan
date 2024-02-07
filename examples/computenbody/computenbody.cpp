@@ -118,7 +118,7 @@ public:
 		textures.gradient.loadFromFile(getAssetPath() + "textures/particle_gradient_rgba.ktx", VK_FORMAT_R8G8B8A8_UNORM, vulkanDevice, queue);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -479,7 +479,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings;
 		setLayoutBindings = {
@@ -503,7 +503,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pipelineLayoutCreateInfo, nullptr, &graphics.pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo =
 			vks::initializers::descriptorSetAllocateInfo(
@@ -613,9 +613,9 @@ public:
 	{
 		prepareStorageBuffers();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
-		setupDescriptorSet();
+		setupDescriptorSetAndUpdate();
 
 		// Semaphore for compute & graphics sync
 		VkSemaphoreCreateInfo semaphoreCreateInfo = vks::initializers::semaphoreCreateInfo();
@@ -874,9 +874,9 @@ public:
 		VK_CHECK_RESULT(vkQueueSubmit(compute.queue, 1, &computeSubmitInfo, VK_NULL_HANDLE));
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		// We will be using the queue family indices to check if graphics and compute queue families differ
 		// If that's the case, we need additional barriers for acquiring and releasing resources
 		graphics.queueFamilyIndex = vulkanDevice->queueFamilyIndices.graphics;
@@ -885,7 +885,7 @@ public:
 		setupDescriptorPool();
 		prepareGraphics();
 		prepareCompute();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

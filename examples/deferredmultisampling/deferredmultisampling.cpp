@@ -252,7 +252,7 @@ public:
 		VK_CHECK_RESULT(vkEndCommandBuffer(offScreenCmdBuffer));
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -321,7 +321,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Deferred shading layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -345,7 +345,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		std::vector<VkWriteDescriptorSet> writeDescriptorSets;
 		VkDescriptorSetAllocateInfo allocInfo = vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
@@ -571,8 +571,8 @@ public:
 		uboComposition.lights[0].position.x = sin(glm::radians(360.0f * timer)) * 5.0f;
 		uboComposition.lights[0].position.z = cos(glm::radians(360.0f * timer)) * 5.0f;
 
-		uboComposition.lights[1].position.x = -4.0f + sin(glm::radians(360.0f * timer) + 45.0f) * 2.0f;
-		uboComposition.lights[1].position.z =  0.0f + cos(glm::radians(360.0f * timer) + 45.0f) * 2.0f;
+		uboComposition.lights[1].position.x = -4.0f + sin(glm::radians(360.0f * timer + 45.0f)) * 2.0f;
+		uboComposition.lights[1].position.z =  0.0f + cos(glm::radians(360.0f * timer + 45.0f)) * 2.0f;
 
 		uboComposition.lights[2].position.x = 4.0f + sin(glm::radians(360.0f * timer)) * 2.0f;
 		uboComposition.lights[2].position.z = 0.0f + cos(glm::radians(360.0f * timer)) * 2.0f;
@@ -620,18 +620,18 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		sampleCount = getMaxUsableSampleCount();
 		loadAssets();
 		deferredSetup();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		buildDeferredCommandBuffer();
 		prepared = true;
 	}
@@ -655,7 +655,7 @@ public:
 				updateUniformBufferDeferredLights();
 			}
 			if (overlay->checkBox("MSAA", &useMSAA)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (vulkanDevice->features.sampleRateShading) {
 				if (overlay->checkBox("Sample rate shading", &useSampleShading)) {

@@ -463,7 +463,7 @@ public:
 			cubeFaceSubresourceRange);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -558,7 +558,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		// Shared pipeline layout
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
@@ -772,19 +772,19 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		prepareCubeMap();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		prepareOffscreenRenderpass();
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
 		prepareOffscreenFramebuffer();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -804,7 +804,7 @@ public:
 	{
 		if (overlay->header("Settings")) {
 			if (overlay->checkBox("Display shadow cube render target", &displayCubeMap)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}

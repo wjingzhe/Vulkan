@@ -514,7 +514,7 @@ public:
 		delete imGui;
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -674,7 +674,7 @@ public:
 	void draw()
 	{
 		VulkanExampleBase::prepareFrame();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
 		VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
@@ -696,15 +696,15 @@ public:
 		imGui->initResources(renderPass, queue, getShadersPath());
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareUniformBuffers();
 		setupLayoutsAndDescriptors();
 		preparePipelines();
 		prepareImGui();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

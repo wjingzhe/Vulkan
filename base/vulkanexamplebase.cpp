@@ -176,7 +176,7 @@ void VulkanExampleBase::createPipelineCache()
 	VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache));
 }
 
-void VulkanExampleBase::prepare()
+void VulkanExampleBase::prepareForRendering()
 {
 	if (vulkanDevice->enableDebugMarkers) {
 		vks::debugmarker::setup(device);
@@ -668,7 +668,7 @@ void VulkanExampleBase::updateOverlay()
 	ImGui::Render();
 
 	if (UIOverlay.update() || UIOverlay.updated) {
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		UIOverlay.updated = false;
 	}
 
@@ -1452,7 +1452,7 @@ void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 		if (androidApp->window != NULL)
 		{
 			if (vulkanExample->initVulkan()) {
-				vulkanExample->prepare();
+				vulkanExample->prepareForRendering();
 				assert(vulkanExample->prepared);
 			}
 			else {
@@ -2485,7 +2485,7 @@ void VulkanExampleBase::keyPressed(uint32_t) {}
 
 void VulkanExampleBase::mouseMoved(double x, double y, bool & handled) {}
 
-void VulkanExampleBase::buildCommandBuffers() {}
+void VulkanExampleBase::buildCommandBuffersForPreRenderPrmitives() {}
 
 void VulkanExampleBase::createSynchronizationPrimitives()
 {
@@ -2684,7 +2684,7 @@ void VulkanExampleBase::windowResize()
 	// references to the recreated frame buffer
 	destroyCommandBuffers();
 	createCommandBuffers();
-	buildCommandBuffers();
+	buildCommandBuffersForPreRenderPrmitives();
 
 	vkDeviceWaitIdle(device);
 

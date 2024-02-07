@@ -141,7 +141,7 @@ public:
 			VK_QUERY_RESULT_64_BIT);
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -238,7 +238,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT, 0)
@@ -352,17 +352,17 @@ public:
 		memcpy(uniformBuffers.VS.mapped, &uboVS, sizeof(uboVS));
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		setupQueryPool();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
 		setupDescriptorSets();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -383,35 +383,35 @@ public:
 		if (overlay->header("Settings")) {
 			if (overlay->comboBox("Object type", &models.objectIndex, models.names)) {
 				updateUniformBuffers();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->sliderInt("Grid size", &gridSize, 1, 10)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			std::vector<std::string> cullModeNames = { "None", "Front", "Back", "Back and front" };
 			if (overlay->comboBox("Cull mode", &cullMode, cullModeNames)) {
 				preparePipelines();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (overlay->checkBox("Blending", &blending)) {
 				preparePipelines();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (deviceFeatures.fillModeNonSolid) {
 				if (overlay->checkBox("Wireframe", &wireframe)) {
 					preparePipelines();
-					buildCommandBuffers();
+					buildCommandBuffersForPreRenderPrmitives();
 				}
 			}
 			if (deviceFeatures.tessellationShader) {
 				if (overlay->checkBox("Tessellation", &tessellation)) {
 					preparePipelines();
-					buildCommandBuffers();
+					buildCommandBuffersForPreRenderPrmitives();
 				}
 			}
 			if (overlay->checkBox("Discard", &discard)) {
 				preparePipelines();
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 		if (!pipelineStats.empty()) {

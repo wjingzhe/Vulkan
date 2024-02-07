@@ -89,7 +89,7 @@ public:
 	uint32_t objectCount = 0;
 
 	// Store the indirect draw commands containing index offsets and instance count per object
-	std::vector<VkDrawIndexedIndirectCommand> indirectCommands;
+	std::vector<VkDrawIndexedIndirectCommand> drawIndirectCommands;
 
 	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
 	{
@@ -128,7 +128,7 @@ public:
 		}
 	};
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -187,7 +187,7 @@ public:
 			else
 			{
 				// If multi draw is not available, we must issue separate draw commands
-				for (auto j = 0; j < indirectCommands.size(); j++)
+				for (auto j = 0; j < drawIndirectCommands.size(); j++)
 				{
 					vkCmdDrawIndexedIndirect(drawCmdBuffers[i], indirectCommandsBuffer.buffer, j * sizeof(VkDrawIndexedIndirectCommand), 1, sizeof(VkDrawIndexedIndirectCommand));
 				}
@@ -222,7 +222,7 @@ public:
 		VK_CHECK_RESULT(vkCreateDescriptorPool(device, &descriptorPoolInfo, nullptr, &descriptorPool));
 	}
 
-	void setupDescriptorSetLayout()
+	void setupDescriptorSetLayoutAndPipelineLayout()
 	{
 		std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings = {
 			// Binding 0: Vertex shader uniform buffer
@@ -240,7 +240,7 @@ public:
 		VK_CHECK_RESULT(vkCreatePipelineLayout(device, &pPipelineLayoutCreateInfo, nullptr, &pipelineLayout));
 	}
 
-	void setupDescriptorSet()
+	void setupDescriptorSetAndUpdate()
 	{
 		VkDescriptorSetAllocateInfo allocInfo =vks::initializers::descriptorSetAllocateInfo(descriptorPool, &descriptorSetLayout, 1);
 		VK_CHECK_RESULT(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
@@ -347,7 +347,7 @@ public:
 	// Prepare (and stage) a buffer containing the indirect draw commands
 	void prepareIndirectData()
 	{
-		indirectCommands.clear();
+		drawIndirectCommands.clear();
 
 		// Create on indirect command for node in the scene with a mesh attached to it
 		uint32_t m = 0;
@@ -363,16 +363,16 @@ public:
 				indirectCmd.firstIndex = node->mesh->primitives[0]->firstIndex;
 				indirectCmd.indexCount = node->mesh->primitives[0]->indexCount;
 
-				indirectCommands.push_back(indirectCmd);
+				drawIndirectCommands.push_back(indirectCmd);
 
 				m++;
 			}
 		}
 
-		indirectDrawCount = static_cast<uint32_t>(indirectCommands.size());
+		indirectDrawCount = static_cast<uint32_t>(drawIndirectCommands.size());
 
 		objectCount = 0;
-		for (auto indirectCmd : indirectCommands)
+		for (auto indirectCmd : drawIndirectCommands)
 		{
 			objectCount += indirectCmd.instanceCount;
 		}
@@ -382,8 +382,8 @@ public:
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&stagingBuffer,
-			indirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand),
-			indirectCommands.data()));
+			drawIndirectCommands.size() * sizeof(VkDrawIndexedIndirectCommand),
+			drawIndirectCommands.data()));
 
 		VK_CHECK_RESULT(vulkanDevice->createBuffer(
 			VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
@@ -471,18 +471,18 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		prepareIndirectData();
 		prepareInstanceData();
 		prepareUniformBuffers();
-		setupDescriptorSetLayout();
+		setupDescriptorSetLayoutAndPipelineLayout();
 		preparePipelines();
 		setupDescriptorPool();
-		setupDescriptorSet();
-		buildCommandBuffers();
+		setupDescriptorSetAndUpdate();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

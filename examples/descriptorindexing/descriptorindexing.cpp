@@ -342,7 +342,7 @@ public:
 		memcpy(uniformBufferVS.mapped, &uboVS, sizeof(uboVS));
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkClearValue clearValues[2];
 		clearValues[0].color = defaultClearColor;
@@ -388,15 +388,15 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		generateTextures();
 		generateCubes();
 		prepareUniformBuffers();
 		setupDescriptorSets();
 		preparePipelines();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

@@ -57,7 +57,7 @@ public:
 	~VulkanExample();
 	virtual void getEnabledFeatures();
 	void handleResize();
-	void buildCommandBuffers();
+	void buildCommandBuffersForPreRenderPrmitives();
 	void loadglTFFile(std::string filename);
 	void loadAssets();
 	void prepareShadingRateImage();
@@ -65,7 +65,7 @@ public:
 	void preparePipelines();
 	void prepareUniformBuffers();
 	void updateUniformBuffers();
-	void prepare();
+	void prepareForRendering();
 	virtual void render();
 	virtual void OnUpdateUIOverlay(vks::UIOverlay* overlay);
 };

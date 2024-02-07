@@ -208,7 +208,7 @@ public:
 		}
 	}
 
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -743,9 +743,9 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		// Make sure the code works properly both with different queues families for graphics and compute and the same queue family
 #ifdef DEBUG_FORCE_SHARED_GRAPHICS_COMPUTE_QUEUE
 		vulkanDevice->queueFamilyIndices.compute = vulkanDevice->queueFamilyIndices.graphics;
@@ -759,7 +759,7 @@ public:
 		setupLayoutsAndDescriptors();
 		preparePipelines();
 		prepareCompute();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 

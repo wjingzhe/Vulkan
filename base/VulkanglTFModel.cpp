@@ -883,7 +883,7 @@ void vkglTF::Model::loadNode(vkglTF::Node *parent, const tinygltf::Node &node, u
 				for (size_t v = 0; v < posAccessor.count; v++) {
 					Vertex vert{};
 					vert.pos = glm::vec4(glm::make_vec3(&bufferPos[v * 3]), 1.0f);
-					vert.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * 3]) : glm::vec3(0.0f)));
+					vert.normal = bufferNormals ? glm::normalize(glm::make_vec3(&bufferNormals[v * 3])) : glm::vec3(0.0f);
 					vert.uv = bufferTexCoords ? glm::make_vec2(&bufferTexCoords[v * 2]) : glm::vec3(0.0f);
 					if (bufferColors) {
 						switch (numColorComponents) {

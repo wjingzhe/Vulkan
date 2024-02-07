@@ -59,7 +59,7 @@ void VulkanExample::handleResize()
 	prepareShadingRateImage();
 }
 
-void VulkanExample::buildCommandBuffers()
+void VulkanExample::buildCommandBuffersForPreRenderPrmitives()
 {
 	if (resized)
 	{
@@ -396,9 +396,9 @@ void VulkanExample::updateUniformBuffers()
 	memcpy(shaderData.buffer.mapped, &shaderData.values, sizeof(shaderData.values));
 }
 
-void VulkanExample::prepare()
+void VulkanExample::prepareForRendering()
 {
-	VulkanExampleBase::prepare();
+	VulkanExampleBase::prepareForRendering();
 	loadAssets();
 	
 	// [POI]
@@ -413,7 +413,7 @@ void VulkanExample::prepare()
 	prepareUniformBuffers();
 	setupDescriptors();
 	preparePipelines();
-	buildCommandBuffers();
+	buildCommandBuffersForPreRenderPrmitives();
 	prepared = true;
 }
 
@@ -428,7 +428,7 @@ void VulkanExample::render()
 void VulkanExample::OnUpdateUIOverlay(vks::UIOverlay* overlay)
 {
 	if (overlay->checkBox("Enable shading rate", &enableShadingRate)) {
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 	}
 	if (overlay->checkBox("Color shading rates", &colorShadingRate)) {
 		updateUniformBuffers();

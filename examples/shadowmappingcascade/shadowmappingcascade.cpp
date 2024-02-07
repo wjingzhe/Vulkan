@@ -344,7 +344,7 @@ public:
 		sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 		VK_CHECK_RESULT(vkCreateSampler(device, &sampler, nullptr, &depth.sampler));
 	}
-	void buildCommandBuffers()
+	void buildCommandBuffersForPreRenderPrmitives()
 	{
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
@@ -763,9 +763,9 @@ public:
 		VulkanExampleBase::submitFrame();
 	}
 
-	void prepare()
+	void prepareForRendering()
 	{
-		VulkanExampleBase::prepare();
+		VulkanExampleBase::prepareForRendering();
 		loadAssets();
 		updateLight();
 		updateCascades();
@@ -773,7 +773,7 @@ public:
 		prepareUniformBuffers();
 		setupLayoutsAndDescriptors();
 		preparePipelines();
-		buildCommandBuffers();
+		buildCommandBuffersForPreRenderPrmitives();
 		prepared = true;
 	}
 
@@ -800,15 +800,15 @@ public:
 				updateUniformBuffers();
 			}
 			if (overlay->checkBox("Display depth map", &displayDepthMap)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 			if (displayDepthMap) {
 				if (overlay->sliderInt("Cascade", &displayDepthMapCascadeIndex, 0, SHADOW_MAP_CASCADE_COUNT - 1)) {
-					buildCommandBuffers();
+					buildCommandBuffersForPreRenderPrmitives();
 				}
 			}
 			if (overlay->checkBox("PCF filtering", &filterPCF)) {
-				buildCommandBuffers();
+				buildCommandBuffersForPreRenderPrmitives();
 			}
 		}
 	}
