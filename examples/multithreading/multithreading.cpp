@@ -15,6 +15,9 @@
 
 #define ENABLE_VALIDATION false
 
+static int totalPrimitives = 0;
+#define UI_COMMAND_ARRAY_CACHE
+
 class VulkanExample : public VulkanExampleBase
 {
 public:
@@ -50,8 +53,11 @@ public:
 		std::vector<VkCommandBuffer>backgrounds;
 		//VkCommandBuffer background;
 
+#ifdef UI_COMMAND_ARRAY_CACHE
 		std::vector<VkCommandBuffer>userInterfaces;
-		//VkCommandBuffer ui;
+#else
+		VkCommandBuffer ui;
+#endif // UI_COMMAND_ARRAY_CACHE
 	} secondaryCommandBuffers;
 
 	// Number of animated objects to be renderer
@@ -172,10 +178,17 @@ public:
 		{
 			secondaryCommandBuffers.backgrounds.push_back(VK_NULL_HANDLE);
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &secondaryCommandBuffers.backgrounds[i]));
+		}
 
+#ifdef UI_COMMAND_ARRAY_CACHE
+		for (size_t i = 0; i < swapChain.imageCount; i++)
+		{
 			secondaryCommandBuffers.userInterfaces.push_back(VK_NULL_HANDLE);
 			VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &secondaryCommandBuffers.userInterfaces[i]));
 		}
+#else
+		VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, &secondaryCommandBuffers.ui));
+#endif // UI_COMMAND_ARRAY_CACHE
 
 		threadData.resize(numThreads);
 
@@ -360,6 +373,8 @@ public:
 				With VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, the primary command buffer's content has to be defined
 				by secondary command buffers, which also applies to the UI overlay command buffer
 			*/
+
+#ifdef UI_COMMAND_ARRAY_CACHE
 		vkResetCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer], 0);
 		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer], &commandBufferBeginInfo));
 
@@ -373,6 +388,18 @@ public:
 		}
 
 		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer]));
+#else
+		VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers.ui, &commandBufferBeginInfo));
+		{
+			vkCmdSetViewport(secondaryCommandBuffers.ui, 0, 1, &viewport);
+			vkCmdSetScissor(secondaryCommandBuffers.ui, 0, 1, &scissor);
+
+			vkCmdBindPipeline(secondaryCommandBuffers.ui, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.starsphere);
+
+			drawUI(secondaryCommandBuffers.ui);
+		}
+		VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers.ui));
+#endif // UI_COMMAND_ARRAY_CACHE
 	}
 
 	void updateSecondaryCommandBuffersForStarBackground(VkCommandBufferInheritanceInfo inheritanceInfo)
@@ -430,7 +457,7 @@ public:
 
 		With VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS, the primary command buffer's content has to be defined
 		by secondary command buffers, which also applies to the UI overlay command buffer
-	*/
+		*/
 		if (userInterfaceCmdCacheDirty)
 		{
 			VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
@@ -441,7 +468,8 @@ public:
 			commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
 			commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
 
-			vkResetCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer], 0);
+			//vkResetCommandBuffer(secondaryCommandBuffers.userInterfaces[currentCmdBufferIndex], 0);
+#ifdef UI_COMMAND_ARRAY_CACHE
 			VK_CHECK_RESULT(vkBeginCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer], &commandBufferBeginInfo));
 
 			vkCmdSetViewport(secondaryCommandBuffers.userInterfaces[currentBuffer], 0, 1, &viewport);
@@ -449,18 +477,30 @@ public:
 
 			vkCmdBindPipeline(secondaryCommandBuffers.userInterfaces[currentBuffer], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.starsphere);
 
-			if (settings.overlay) {
-				drawUI(secondaryCommandBuffers.userInterfaces[currentBuffer]);
+			if (settings.overlay)
+			{
+				if (drawUI(secondaryCommandBuffers.userInterfaces[currentBuffer]))
+				{
+					tempUserInterfaceCmdUpdatedFrameIndex++;
+				}
+				else
+				{
+					tempUserInterfaceCmdUpdatedFrameIndex = 0;
+				}
+			}
+			else
+			{
+				tempUserInterfaceCmdUpdatedFrameIndex = 0;
 			}
 
 			VK_CHECK_RESULT(vkEndCommandBuffer(secondaryCommandBuffers.userInterfaces[currentBuffer]));
 
-			tempUserInterfaceCmdUpdatedFrameIndex++;
 			if (tempUserInterfaceCmdUpdatedFrameIndex >= swapChain.imageCount)
 			{
 				tempUserInterfaceCmdUpdatedFrameIndex = 0;
 				userInterfaceCmdCacheDirty = false;
 			}
+#endif
 		}//if userInterfaceCmdCacheDirty
 	}
 
@@ -579,15 +619,19 @@ public:
 			commandBuffers.push_back(secondaryCommandBuffers.backgrounds[currentBuffer]);
 		}
 
+		//totalPrimitives = 0;
 		// Add a job to the thread's queue for each object to be rendered
 		for (uint32_t t = 0; t < numThreads; t++)
 		{
 			for (uint32_t i = 0; i < numObjectsPerThread; i++)
 			{
+				
 				threadPool.threads[t]->addJob([=] { threadRenderCode(t, i, inheritanceInfo); });
 			}
 		}
 		threadPool.wait();
+
+		++totalPrimitives;
 
 		// Only submit if object is within the current view frustum
 		for (uint32_t t = 0; t < numThreads; t++)
@@ -602,9 +646,16 @@ public:
 		}
 
 		// Render ui last
+#ifdef UI_COMMAND_ARRAY_CACHE
 		if (UIOverlay.visible) {
 			commandBuffers.push_back(secondaryCommandBuffers.userInterfaces[currentBuffer]);
 		}
+#else
+		if (UIOverlay.visible)
+		{
+			commandBuffers.push_back(secondaryCommandBuffers.ui);
+		}
+#endif // UI_COMMAND_ARRAY_CACHE
 
 		// Execute render commands from the secondary command buffer
 		vkCmdExecuteCommands(primaryCommandBuffer, commandBuffers.size(), commandBuffers.data());
@@ -650,7 +701,7 @@ public:
 	virtual void OnUpdateUIOverlay(vks::UIOverlay *overlay)
 	{
 		if (overlay->header("Statistics")) {
-			overlay->text("Active threads: %d", numThreads);
+			overlay->text("Active threads: %d", totalPrimitives);
 		}
 		if (overlay->header("Settings")) {
 			overlay->checkBox("Stars", &displayStarSphere);
@@ -662,9 +713,6 @@ public:
 	{
 		VulkanExampleBase::viewChanged();
 		//starBackgroundCmdBufferCacheDirty = true;
-
-		userInterfaceCmdCacheDirty = true;
-		tempUserInterfaceCmdUpdatedFrameIndex = 0;
 	}
 
 	virtual void windowResized() override

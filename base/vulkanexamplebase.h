@@ -394,7 +394,7 @@ public:
 	void renderLoop();
 
 	/** @brief Adds the drawing commands for the ImGui overlay to the given command buffer */
-	void drawUI(const VkCommandBuffer commandBuffer);
+	bool drawUI(const VkCommandBuffer commandBuffer);
 
 	/** Prepare the next frame for workload submission by acquiring the next swap chain image */
 	void prepareFrame();
