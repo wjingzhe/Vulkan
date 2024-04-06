@@ -140,7 +140,11 @@ namespace vks
 		{
 			for (uint32_t i = 0; i < static_cast<uint32_t>(queueFamilyProperties.size()); i++)
 			{
-				if ((queueFamilyProperties[i].queueFlags & queueFlags) && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0) && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0))
+				if (
+                (queueFamilyProperties[i].queueFlags & queueFlags)
+                && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0)
+                && ((queueFamilyProperties[i].queueFlags & VK_QUEUE_COMPUTE_BIT) == 0)
+                )
 				{
 					return i;
 				}

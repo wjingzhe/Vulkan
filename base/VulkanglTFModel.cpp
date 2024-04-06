@@ -576,19 +576,26 @@ VkVertexInputAttributeDescription vkglTF::Vertex::inputAttributeDescription(uint
 	switch (component) {
 		case VertexComponent::Position: 
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) });
-		case VertexComponent::Normal:
+		
+        case VertexComponent::Normal:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal) });
-		case VertexComponent::UV:
+		
+        case VertexComponent::UV:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv) });
-		case VertexComponent::Color:
+		
+        case VertexComponent::Color:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, color) });
-		case VertexComponent::Tangent:
+	
+    	case VertexComponent::Tangent:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent)} );
-		case VertexComponent::Joint0:
+		
+        case VertexComponent::Joint0:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, joint0) });
-		case VertexComponent::Weight0:
+		
+        case VertexComponent::Weight0:
 			return VkVertexInputAttributeDescription({ location, binding, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, weight0) });
-		default:
+		
+        default:
 			return VkVertexInputAttributeDescription({});
 	}
 }
@@ -902,42 +909,51 @@ void vkglTF::Model::loadNode(vkglTF::Node *parent, const tinygltf::Node &node, u
 					vertexBuffer.push_back(vert);
 				}
 			}
-			// Indices
-			{
+
+			{// Indices
 				const tinygltf::Accessor &accessor = model.accessors[primitive.indices];
 				const tinygltf::BufferView &bufferView = model.bufferViews[accessor.bufferView];
 				const tinygltf::Buffer &buffer = model.buffers[bufferView.buffer];
 
 				indexCount = static_cast<uint32_t>(accessor.count);
 
-				switch (accessor.componentType) {
-				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
+				switch (accessor.componentType)
+                {
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: 
+                {
 					uint32_t *buf = new uint32_t[accessor.count];
 					memcpy(buf, &buffer.data[accessor.byteOffset + bufferView.byteOffset], accessor.count * sizeof(uint32_t));
-					for (size_t index = 0; index < accessor.count; index++) {
+					for (size_t index = 0; index < accessor.count; index++)
+                    {
 						indexBuffer.push_back(buf[index] + vertexStart);
 					}
                     delete[] buf;
 					break;
 				}
-				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
+
+				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: 
+                {
 					uint16_t *buf = new uint16_t[accessor.count];
 					memcpy(buf, &buffer.data[accessor.byteOffset + bufferView.byteOffset], accessor.count * sizeof(uint16_t));
-					for (size_t index = 0; index < accessor.count; index++) {
+					for (size_t index = 0; index < accessor.count; index++) 
+                    {
 						indexBuffer.push_back(buf[index] + vertexStart);
 					}
                     delete[] buf;
                     break;
 				}
+
 				case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
 					uint8_t *buf = new uint8_t[accessor.count];
 					memcpy(buf, &buffer.data[accessor.byteOffset + bufferView.byteOffset], accessor.count * sizeof(uint8_t));
-					for (size_t index = 0; index < accessor.count; index++) {
+					for (size_t index = 0; index < accessor.count; index++) 
+                    {
 						indexBuffer.push_back(buf[index] + vertexStart);
 					}
                     delete[] buf;
                     break;
 				}
+
 				default:
 					std::cerr << "Index component type " << accessor.componentType << " not supported!" << std::endl;
 					return;
@@ -1237,7 +1253,8 @@ void vkglTF::Model::loadFromFile(std::string filename, vks::VulkanDevice *device
 		for (Node* node : linearNodes) {
 			if (node->mesh) {
 				const glm::mat4 localMatrix = node->getMatrix();
-				for (Primitive* primitive : node->mesh->primitives) {
+				for (Primitive* primitive : node->mesh->primitives)
+                {
 					for (uint32_t i = 0; i < primitive->vertexCount; i++) {
 						Vertex& vertex = vertexBuffer[primitive->firstVertex + i];
 						// Pre-transform vertex positions by node-hierarchy
