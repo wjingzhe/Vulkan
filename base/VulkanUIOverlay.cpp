@@ -403,16 +403,19 @@ namespace vks
 
 	void UIOverlay::freeResources()
 	{
-		vertexBuffer.destroy();
-		indexBuffer.destroy();
-		vkDestroyImageView(device->logicalDevice, fontView, nullptr);
-		vkDestroyImage(device->logicalDevice, fontImage, nullptr);
-		vkFreeMemory(device->logicalDevice, fontMemory, nullptr);
-		vkDestroySampler(device->logicalDevice, sampler, nullptr);
-		vkDestroyDescriptorSetLayout(device->logicalDevice, descriptorSetLayout, nullptr);
-		vkDestroyDescriptorPool(device->logicalDevice, descriptorPool, nullptr);
-		vkDestroyPipelineLayout(device->logicalDevice, pipelineLayout, nullptr);
-		vkDestroyPipeline(device->logicalDevice, pipeline, nullptr);
+		if (device)
+		{
+			vertexBuffer.destroy();
+			indexBuffer.destroy();
+			vkDestroyImageView(device->logicalDevice, fontView, nullptr);
+			vkDestroyImage(device->logicalDevice, fontImage, nullptr);
+			vkFreeMemory(device->logicalDevice, fontMemory, nullptr);
+			vkDestroySampler(device->logicalDevice, sampler, nullptr);
+			vkDestroyDescriptorSetLayout(device->logicalDevice, descriptorSetLayout, nullptr);
+			vkDestroyDescriptorPool(device->logicalDevice, descriptorPool, nullptr);
+			vkDestroyPipelineLayout(device->logicalDevice, pipelineLayout, nullptr);
+			vkDestroyPipeline(device->logicalDevice, pipeline, nullptr);
+		}
 	}
 
 	bool UIOverlay::header(const char *caption)

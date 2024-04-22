@@ -76,7 +76,7 @@ public:
 		glm::vec4 vel;								// xyz = velocity, w = gradient texture position
 	};
 
-	VulkanExample() : VulkanExampleBase(ENABLE_VALIDATION)
+	VulkanExample() : VulkanExampleBase()
 	{
 		title = "Compute shader N-body system";
 		camera.type = Camera::CameraType::lookat;

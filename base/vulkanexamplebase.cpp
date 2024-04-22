@@ -1,7 +1,7 @@
 /*
 * Vulkan Example base class
 *
-* Copyright (C) by Sascha Willems - www.saschawillems.de
+* Copyright (C) 2016-2024 by Sascha Willems - www.saschawillems.de
 *
 * This code is licensed under the MIT license (MIT) (http://opensource.org/licenses/MIT)
 */
@@ -10,12 +10,154 @@
 
 #if (defined(VK_USE_PLATFORM_MACOS_MVK) && defined(VK_EXAMPLE_XCODE_GENERATED))
 #include <Cocoa/Cocoa.h>
-#include <Carbon/Carbon.h>
 #include <QuartzCore/CAMetalLayer.h>
 #include <CoreVideo/CVDisplayLink.h>
 #endif
 
 std::vector<const char*> VulkanExampleBase::args;
+
+VkResult VulkanExampleBase::createInstance(bool enableValidation)
+{
+	this->settings.validation = enableValidation;
+
+	// Validation can also be forced via a define
+#if defined(_VALIDATION)
+	this->settings.validation = true;
+#endif
+
+	VkApplicationInfo appInfo = {};
+	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	appInfo.pApplicationName = name.c_str();
+	appInfo.pEngineName = name.c_str();
+	appInfo.apiVersion = apiVersion;
+
+	std::vector<const char*> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
+
+	// Enable surface extensions depending on os
+#if defined(_WIN32)
+	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+#elif defined(_DIRECT2DISPLAY)
+	instanceExtensions.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
+	instanceExtensions.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	instanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_IOS_MVK)
+	instanceExtensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_MACOS_MVK)
+	instanceExtensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
+	instanceExtensions.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
+#elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+	instanceExtensions.push_back(VK_QNX_SCREEN_SURFACE_EXTENSION_NAME);
+#endif
+
+	// Get extensions supported by the instance and store for later use
+	uint32_t extCount = 0;
+	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
+	if (extCount > 0)
+	{
+		std::vector<VkExtensionProperties> extensions(extCount);
+		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)
+		{
+			for (VkExtensionProperties& extension : extensions)
+			{
+				supportedInstanceExtensions.push_back(extension.extensionName);
+			}
+		}
+	}
+
+#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
+	// SRS - When running on iOS/macOS with MoltenVK, enable VK_KHR_get_physical_device_properties2 if not already enabled by the example (required by VK_KHR_portability_subset)
+	if (std::find(enabledInstanceExtensions.begin(), enabledInstanceExtensions.end(), VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == enabledInstanceExtensions.end())
+	{
+		enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+	}
+#endif
+
+	// Enabled requested instance extensions
+	if (enabledInstanceExtensions.size() > 0)
+	{
+		for (const char * enabledExtension : enabledInstanceExtensions)
+		{
+			// Output message if requested extension is not available
+			if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), enabledExtension) == supportedInstanceExtensions.end())
+			{
+				std::cerr << "Enabled instance extension \"" << enabledExtension << "\" is not present at instance level\n";
+			}
+			instanceExtensions.push_back(enabledExtension);
+		}
+	}
+
+	VkInstanceCreateInfo instanceCreateInfo = {};
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.pNext = NULL;
+	instanceCreateInfo.pApplicationInfo = &appInfo;
+
+	VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCI{};
+
+
+#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)) && defined(VK_KHR_portability_enumeration)
+	// SRS - When running on iOS/macOS with MoltenVK and VK_KHR_portability_enumeration is defined and supported by the instance, enable the extension and the flag
+	if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) != supportedInstanceExtensions.end())
+	{
+		instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+		instanceCreateInfo.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+	}
+#endif
+
+	// Enable the debug utils extension if available (e.g. when debugging tools are present)
+	if (settings.validation || std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), VK_EXT_DEBUG_UTILS_EXTENSION_NAME) != supportedInstanceExtensions.end()) {
+		instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+	}
+
+	if (instanceExtensions.size() > 0)
+	{
+		instanceCreateInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
+		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
+	}
+
+	// The VK_LAYER_KHRONOS_validation contains all current validation functionality.
+	// Note that on Android this layer requires at least NDK r20
+	const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
+	if (settings.validation)
+	{
+		// Check if this layer is available at instance level
+		uint32_t instanceLayerCount;
+		vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
+		std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
+		vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
+		bool validationLayerPresent = false;
+		for (VkLayerProperties& layer : instanceLayerProperties) {
+			if (strcmp(layer.layerName, validationLayerName) == 0) {
+				validationLayerPresent = true;
+				break;
+			}
+		}
+		if (validationLayerPresent) {
+			instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
+			instanceCreateInfo.enabledLayerCount = 1;
+		} else {
+			std::cerr << "Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled";
+		}
+	}
+	VkResult result = vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
+
+	return result;
+}
+
+void VulkanExampleBase::renderFrame()
+{
+	VulkanExampleBase::prepareFrame();
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
+	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+	VulkanExampleBase::submitFrame();
+}
 
 std::string VulkanExampleBase::getWindowTitle()
 {
@@ -28,90 +170,65 @@ std::string VulkanExampleBase::getWindowTitle()
 	return windowTitle;
 }
 
-void VulkanExampleBase::resizeWindow()
+void VulkanExampleBase::createCommandBuffers()
 {
-	if (!prepared)
-	{
-		return;
-	}
+	// Create one command buffer for each swap chain image and reuse for rendering
+	drawCmdBuffers.resize(swapChain.imageCount);
 
-	prepared = false;
-	resized = true;
+	VkCommandBufferAllocateInfo cmdBufAllocateInfo =
+		vks::initializers::commandBufferAllocateInfo(
+			cmdPool,
+			VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			static_cast<uint32_t>(drawCmdBuffers.size()));
 
-	// Ensure all operations on the device have been finished before destroying resources
-	vkDeviceWaitIdle(device);
-
-	// Recreate swap chain
-	width = destWidth;
-	height = destHeight;
-	setupSwapChain();
-
-	// Recreate the frame buffers
-	vkDestroyImageView(device, depthStencil.view, nullptr);
-	vkDestroyImage(device, depthStencil.image, nullptr);
-	vkFreeMemory(device, depthStencil.mem, nullptr);
-	setupDepthStencil();
-	for (uint32_t i = 0; i < frameBuffers.size(); i++) {
-		vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
-	}
-	setupFrameBuffer();
-
-	if ((width > 0.0f) && (height > 0.0f)) {
-		if (settings.overlay) {
-			UIOverlay.resize(width, height);
-		}
-	}
-
-	// Command buffers need to be recreated as they may store
-	// references to the recreated frame buffer
-	destroyCommandBuffers();
-	createCommandBuffers();
-	buildCommandBuffersForPreRenderPrmitives();
-
-	vkDeviceWaitIdle(device);
-
-	if ((width > 0.0f) && (height > 0.0f)) {
-		camera.updateAspectRatio((float)width / (float)height);
-	}
-
-	// Notify derived class
-	windowResized();
-	viewChanged();
-
-	prepared = true;
+	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data()));
 }
 
-void VulkanExampleBase::handleMouseMove(int32_t x, int32_t y)
+void VulkanExampleBase::destroyCommandBuffers()
 {
-	int32_t dx = (int32_t)mousePos.x - x;
-	int32_t dy = (int32_t)mousePos.y - y;
+	vkFreeCommandBuffers(device, cmdPool, static_cast<uint32_t>(drawCmdBuffers.size()), drawCmdBuffers.data());
+}
 
-	bool handled = false;
+std::string VulkanExampleBase::getShadersPath() const
+{
+	return getAssetPath() + shaderDir + "/";
+}
 
-	if (settings.overlay) {
-		ImGuiIO& io = ImGui::GetIO();
-		handled = io.WantCaptureMouse;
-	}
-	mouseMoved((float)x, (float)y, handled);
+void VulkanExampleBase::createPipelineCache()
+{
+	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+	VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache));
+}
 
-	if (handled) {
-		mousePos = glm::vec2((float)x, (float)y);
-		return;
-	}
+void VulkanExampleBase::prepareForRendering()
+{
+	initSwapchain();
+	createCommandPool();
+	setupSwapChain();
+	createCommandBuffers();
+	createSynchronizationPrimitives();
+	setupDepthStencil();
+	setupRenderPass();
+	createPipelineCache();
+	setupFrameBuffer();
+	settings.overlay = settings.overlay && (!benchmark.active);
+}
 
-	if (mouseButtons.left) {
-		camera.rotate(glm::vec3(dy * camera.rotationSpeed, -dx * camera.rotationSpeed, 0.0f));
-		viewUpdated = true;
-	}
-	if (mouseButtons.right) {
-		camera.translate(glm::vec3(-0.0f, 0.0f, dy * .005f));
-		viewUpdated = true;
-	}
-	if (mouseButtons.middle) {
-		camera.translate(glm::vec3(-dx * 0.01f, -dy * 0.01f, 0.0f));
-		viewUpdated = true;
-	}
-	mousePos = glm::vec2((float)x, (float)y);
+VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileName, VkShaderStageFlagBits stage)
+{
+	VkPipelineShaderStageCreateInfo shaderStage = {};
+	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStage.stage = stage;
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+	shaderStage.module = vks::tools::loadShader(androidApp->activity->assetManager, fileName.c_str(), device);
+#else
+	shaderStage.module = vks::tools::loadShader(fileName.c_str(), device);
+#endif
+	shaderStage.pName = "main";
+	assert(shaderStage.module != VK_NULL_HANDLE);
+	shaderModules.push_back(shaderStage.module);
+	return shaderStage;
 }
 
 void VulkanExampleBase::nextFrame()
@@ -120,13 +237,17 @@ void VulkanExampleBase::nextFrame()
 	if (viewUpdated)
 	{
 		viewUpdated = false;
-		viewChanged();
 	}
 
 	render();
 	frameCounter++;
 	auto tEnd = std::chrono::high_resolution_clock::now();
+#if (defined(VK_USE_PLATFORM_IOS_MVK) || (defined(VK_USE_PLATFORM_MACOS_MVK) && !defined(VK_EXAMPLE_XCODE_GENERATED)))
+	// SRS - Calculate tDiff as time between frames vs. rendering time for iOS/macOS displayLink-driven examples project
+	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tPrevEnd).count();
+#else
 	auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+#endif
 	frameTimer = (float)tDiff / 1000.0f;
 	camera.update(frameTimer);
 	if (camera.moving())
@@ -147,7 +268,7 @@ void VulkanExampleBase::nextFrame()
 	{
 		lastFPS = static_cast<uint32_t>((float)frameCounter * (1000.0f / fpsTimer));
 #if defined(_WIN32)
-		if (!settings.overlay) {
+		if (!settings.overlay)	{
 			std::string windowTitle = getWindowTitle();
 			SetWindowText(window, windowTitle.c_str());
 		}
@@ -155,8 +276,382 @@ void VulkanExampleBase::nextFrame()
 		frameCounter = 0;
 		lastTimestamp = tEnd;
 	}
-	// TODO: Cap UI overlay update rates
-	updateOverlay();
+	tPrevEnd = tEnd;
+
+}
+
+void VulkanExampleBase::renderLoop()
+{
+// SRS - for non-apple plaforms, handle benchmarking here within VulkanExampleBase::renderLoop()
+//     - for macOS, handle benchmarking within NSApp rendering loop via displayLinkOutputCb()
+#if !(defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
+	if (benchmark.active) {
+#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
+		while (!configured)
+			wl_display_dispatch(display);
+		while (wl_display_prepare_read(display) != 0)
+			wl_display_dispatch_pending(display);
+		wl_display_flush(display);
+		wl_display_read_events(display);
+		wl_display_dispatch_pending(display);
+#endif
+
+		benchmark.run([=] { render(); }, vulkanDevice->properties);
+		vkDeviceWaitIdle(device);
+		if (benchmark.filename != "") {
+			benchmark.saveResults();
+		}
+		return;
+	}
+#endif
+
+	destWidth = width;
+	destHeight = height;
+	lastTimestamp = std::chrono::high_resolution_clock::now();
+	tPrevEnd = lastTimestamp;
+#if defined(_WIN32)
+	MSG msg;
+	bool quitMessageReceived = false;
+	while (!quitMessageReceived) {
+		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+			if (msg.message == WM_QUIT) {
+				quitMessageReceived = true;
+				break;
+			}
+		}
+		if (prepared && !IsIconic(window)) {
+			nextFrame();
+		}
+	}
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+	while (1)
+	{
+		int ident;
+		int events;
+		struct android_poll_source* source;
+		bool destroy = false;
+
+		focused = true;
+
+		while ((ident = ALooper_pollAll(focused ? 0 : -1, NULL, &events, (void**)&source)) >= 0)
+		{
+			if (source != NULL)
+			{
+				source->process(androidApp, source);
+			}
+			if (androidApp->destroyRequested != 0)
+			{
+				LOGD("Android app destroy requested");
+				destroy = true;
+				break;
+			}
+		}
+
+		// App destruction requested
+		// Exit loop, example will be destroyed in application main
+		if (destroy)
+		{
+			ANativeActivity_finish(androidApp->activity);
+			break;
+		}
+
+		// Render frame
+		if (prepared)
+		{
+			auto tStart = std::chrono::high_resolution_clock::now();
+			render();
+			frameCounter++;
+			auto tEnd = std::chrono::high_resolution_clock::now();
+			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+			frameTimer = tDiff / 1000.0f;
+			camera.update(frameTimer);
+			// Convert to clamped timer value
+			if (!paused)
+			{
+				timer += timerSpeed * frameTimer;
+				if (timer > 1.0)
+				{
+					timer -= 1.0f;
+				}
+			}
+			float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+			if (fpsTimer > 1000.0f)
+			{
+				lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+				frameCounter = 0;
+				lastTimestamp = tEnd;
+			}
+
+			// TODO: Cap UI overlay update rates/only issue when update requested
+			updateOverlay();
+
+			bool updateView = false;
+
+			// Check touch state (for movement)
+			if (touchDown) {
+				touchTimer += frameTimer;
+			}
+			if (touchTimer >= 1.0) {
+				camera.keys.up = true;
+			}
+
+			// Check gamepad state
+			const float deadZone = 0.0015f;
+			// todo : check if gamepad is present
+			// todo : time based and relative axis positions
+			if (camera.type != Camera::CameraType::firstperson)
+			{
+				// Rotate
+				if (std::abs(gamePadState.axisLeft.x) > deadZone)
+				{
+					camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
+					updateView = true;
+				}
+				if (std::abs(gamePadState.axisLeft.y) > deadZone)
+				{
+					camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
+					updateView = true;
+				}
+				// Zoom
+				if (std::abs(gamePadState.axisRight.y) > deadZone)
+				{
+					camera.translate(glm::vec3(0.0f, 0.0f, gamePadState.axisRight.y * 0.01f));
+					updateView = true;
+				}
+			}
+			else
+			{
+				updateView = camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
+			}
+		}
+	}
+#elif defined(_DIRECT2DISPLAY)
+	while (!quit)
+	{
+		auto tStart = std::chrono::high_resolution_clock::now();
+		if (viewUpdated)
+		{
+			viewUpdated = false;
+		}
+		render();
+		frameCounter++;
+		auto tEnd = std::chrono::high_resolution_clock::now();
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		frameTimer = tDiff / 1000.0f;
+		camera.update(frameTimer);
+		if (camera.moving())
+		{
+			viewUpdated = true;
+		}
+		// Convert to clamped timer value
+		if (!paused)
+		{
+			timer += timerSpeed * frameTimer;
+			if (timer > 1.0)
+			{
+				timer -= 1.0f;
+			}
+		}
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+		if (fpsTimer > 1000.0f)
+		{
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			frameCounter = 0;
+			lastTimestamp = tEnd;
+		}
+		updateOverlay();
+	}
+#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
+	while (!quit)
+	{
+		auto tStart = std::chrono::high_resolution_clock::now();
+		if (viewUpdated)
+		{
+			viewUpdated = false;
+		}
+		DFBWindowEvent event;
+		while (!event_buffer->GetEvent(event_buffer, DFB_EVENT(&event)))
+		{
+			handleEvent(&event);
+		}
+		render();
+		frameCounter++;
+		auto tEnd = std::chrono::high_resolution_clock::now();
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		frameTimer = tDiff / 1000.0f;
+		camera.update(frameTimer);
+		if (camera.moving())
+		{
+			viewUpdated = true;
+		}
+		// Convert to clamped timer value
+		if (!paused)
+		{
+			timer += timerSpeed * frameTimer;
+			if (timer > 1.0)
+			{
+				timer -= 1.0f;
+			}
+		}
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+		if (fpsTimer > 1000.0f)
+		{
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			frameCounter = 0;
+			lastTimestamp = tEnd;
+		}
+		updateOverlay();
+	}
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+	while (!quit)
+	{
+		auto tStart = std::chrono::high_resolution_clock::now();
+		if (viewUpdated)
+		{
+			viewUpdated = false;
+		}
+
+		while (!configured)
+			wl_display_dispatch(display);
+		while (wl_display_prepare_read(display) != 0)
+			wl_display_dispatch_pending(display);
+		wl_display_flush(display);
+		wl_display_read_events(display);
+		wl_display_dispatch_pending(display);
+
+		render();
+		frameCounter++;
+		auto tEnd = std::chrono::high_resolution_clock::now();
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		frameTimer = tDiff / 1000.0f;
+		camera.update(frameTimer);
+		if (camera.moving())
+		{
+			viewUpdated = true;
+		}
+		// Convert to clamped timer value
+		if (!paused)
+		{
+			timer += timerSpeed * frameTimer;
+			if (timer > 1.0)
+			{
+				timer -= 1.0f;
+			}
+		}
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+		if (fpsTimer > 1000.0f)
+		{
+			if (!settings.overlay)
+			{
+				std::string windowTitle = getWindowTitle();
+				xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
+			}
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			frameCounter = 0;
+			lastTimestamp = tEnd;
+		}
+		updateOverlay();
+	}
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
+	xcb_flush(connection);
+	while (!quit)
+	{
+		auto tStart = std::chrono::high_resolution_clock::now();
+		if (viewUpdated)
+		{
+			viewUpdated = false;
+		}
+		xcb_generic_event_t *event;
+		while ((event = xcb_poll_for_event(connection)))
+		{
+			handleEvent(event);
+			free(event);
+		}
+		render();
+		frameCounter++;
+		auto tEnd = std::chrono::high_resolution_clock::now();
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		frameTimer = tDiff / 1000.0f;
+		camera.update(frameTimer);
+		if (camera.moving())
+		{
+			viewUpdated = true;
+		}
+		// Convert to clamped timer value
+		if (!paused)
+		{
+			timer += timerSpeed * frameTimer;
+			if (timer > 1.0)
+			{
+				timer -= 1.0f;
+			}
+		}
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+		if (fpsTimer > 1000.0f)
+		{
+			if (!settings.overlay)
+			{
+				std::string windowTitle = getWindowTitle();
+				xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
+					window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
+					windowTitle.size(), windowTitle.c_str());
+			}
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			frameCounter = 0;
+			lastTimestamp = tEnd;
+		}
+		updateOverlay();
+	}
+#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
+	while (!quit)
+	{
+		auto tStart = std::chrono::high_resolution_clock::now();
+		if (viewUpdated)
+		{
+			viewUpdated = false;
+		}
+		render();
+		frameCounter++;
+		auto tEnd = std::chrono::high_resolution_clock::now();
+		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
+		frameTimer = tDiff / 1000.0f;
+		camera.update(frameTimer);
+		if (camera.moving())
+		{
+			viewUpdated = true;
+		}
+		// Convert to clamped timer value
+		timer += timerSpeed * frameTimer;
+		if (timer > 1.0)
+		{
+			timer -= 1.0f;
+		}
+		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
+		if (fpsTimer > 1000.0f)
+		{
+			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
+			frameCounter = 0;
+			lastTimestamp = tEnd;
+		}
+		updateOverlay();
+	}
+#elif (defined(VK_USE_PLATFORM_MACOS_MVK) && defined(VK_EXAMPLE_XCODE_GENERATED))
+	[NSApp run];
+#elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+	while (!quit) {
+		handleEvent();
+
+		if (prepared) {
+			nextFrame();
+		}
+	}
+#endif
+	// Flush device to make sure all resources can be freed
+	if (device != VK_NULL_HANDLE) {
+		vkDeviceWaitIdle(device);
+	}
 }
 
 void VulkanExampleBase::updateOverlay()
@@ -169,14 +664,15 @@ void VulkanExampleBase::updateOverlay()
 	io.DisplaySize = ImVec2((float)width, (float)height);
 	io.DeltaTime = frameTimer;
 
-	io.MousePos = ImVec2(mousePos.x, mousePos.y);
-	io.MouseDown[0] = mouseButtons.left;
-	io.MouseDown[1] = mouseButtons.right;
+	io.MousePos = ImVec2(mouseState.position.x, mouseState.position.y);
+	io.MouseDown[0] = mouseState.buttons.left && UIOverlay.visible;
+	io.MouseDown[1] = mouseState.buttons.right && UIOverlay.visible;
+	io.MouseDown[2] = mouseState.buttons.middle && UIOverlay.visible;
 
 	ImGui::NewFrame();
 
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
-	ImGui::SetNextWindowPos(ImVec2(10, 10));
+	ImGui::SetNextWindowPos(ImVec2(10 * UIOverlay.scale, 10 * UIOverlay.scale));
 	ImGui::SetNextWindowSize(ImVec2(0, 0), ImGuiSetCond_FirstUseEver);
 	ImGui::Begin("Vulkan Example", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 	ImGui::TextUnformatted(title.c_str());
@@ -203,87 +699,58 @@ void VulkanExampleBase::updateOverlay()
 	}
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	if (mouseButtons.left) {
-		mouseButtons.left = false;
+	if (mouseState.buttons.left) {
+		mouseState.buttons.left = false;
 	}
 #endif
 }
 
-void VulkanExampleBase::createPipelineCache()
+void VulkanExampleBase::drawUI(const VkCommandBuffer commandBuffer)
 {
-	VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-	pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-	VK_CHECK_RESULT(vkCreatePipelineCache(device, &pipelineCacheCreateInfo, nullptr, &pipelineCache));
-}
+	if (settings.overlay && UIOverlay.visible) {
+		const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
+		const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-void VulkanExampleBase::createCommandPool()
-{
-	VkCommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
-	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool));
-}
-
-void VulkanExampleBase::createSynchronizationPrimitives()
-{
-	// Wait fences to sync command buffer access
-	VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-	waitFences.resize(drawCmdBuffers.size());
-	for (auto& fence : waitFences) {
-		VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
+		UIOverlay.draw(commandBuffer);
 	}
 }
 
-void VulkanExampleBase::initSwapchain()
+void VulkanExampleBase::prepareFrame()
 {
-#if defined(_WIN32)
-	swapChain.initSurface(windowInstance, window);
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	swapChain.initSurface(androidApp->window);
-#elif (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-	swapChain.initSurface(view);
-#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	swapChain.initSurface(dfb, surface);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	swapChain.initSurface(display, surface);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-	swapChain.initSurface(connection, window);
-#elif (defined(_DIRECT2DISPLAY) || defined(VK_USE_PLATFORM_HEADLESS_EXT))
-	swapChain.initSurface(width, height);
-#endif
+	// Acquire the next image from the swap chain
+	VkResult result = swapChain.acquireNextImage(semaphores.presentComplete, &currentBuffer);
+	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE)
+	// SRS - If no longer optimal (VK_SUBOPTIMAL_KHR), wait until submitFrame() in case number of swapchain images will change on resize
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			resizeWindow();
+		}
+		return;
+	}
+	else {
+		VK_CHECK_RESULT(result);
+	}
 }
 
-void VulkanExampleBase::setupSwapChain()
+void VulkanExampleBase::submitFrame()
 {
-	swapChain.create(&width, &height, settings.vsync);
+	VkResult result = swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
+	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
+	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+		resizeWindow();
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			return;
+		}
+	}
+	else {
+		VK_CHECK_RESULT(result);
+	}
+	VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 }
 
-void VulkanExampleBase::createCommandBuffers()
-{
-	// Create one command buffer for each swap chain image and reuse for rendering
-	drawCmdBuffers.resize(swapChain.imageCount);
-
-	VkCommandBufferAllocateInfo cmdBufAllocateInfo =
-		vks::initializers::commandBufferAllocateInfo(
-			cmdPool,
-			VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			static_cast<uint32_t>(drawCmdBuffers.size()));
-
-	VK_CHECK_RESULT(vkAllocateCommandBuffers(device, &cmdBufAllocateInfo, drawCmdBuffers.data()));
-}
-
-void VulkanExampleBase::destroyCommandBuffers()
-{
-	vkFreeCommandBuffers(device, cmdPool, static_cast<uint32_t>(drawCmdBuffers.size()), drawCmdBuffers.data());
-}
-
-std::string VulkanExampleBase::getShadersPath() const
-{
-	return getAssetPath() + "shaders/" + shaderDir + "/";
-}
-
-VulkanExampleBase::VulkanExampleBase(bool enableValidation)
+VulkanExampleBase::VulkanExampleBase()
 {
 #if !defined(VK_USE_PLATFORM_ANDROID_KHR)
 	// Check for a valid asset path
@@ -300,9 +767,28 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 	}
 #endif
 
-	settings.validation = enableValidation;
-	
+	// Validation for all samples can be forced at compile time using the FORCE_VALIDATION define
+#if defined(FORCE_VALIDATION)
+	settings.validation = true;
+#endif
+
 	// Command line arguments
+	commandLineParser.add("help", { "--help" }, 0, "Show help");
+	commandLineParser.add("validation", { "-v", "--validation" }, 0, "Enable validation layers");
+	commandLineParser.add("vsync", { "-vs", "--vsync" }, 0, "Enable V-Sync");
+	commandLineParser.add("fullscreen", { "-f", "--fullscreen" }, 0, "Start in fullscreen mode");
+	commandLineParser.add("width", { "-w", "--width" }, 1, "Set window width");
+	commandLineParser.add("height", { "-h", "--height" }, 1, "Set window height");
+	commandLineParser.add("shaders", { "-s", "--shaders" }, 1, "Select shader type to use (glsl or hlsl)");
+	commandLineParser.add("gpuselection", { "-g", "--gpu" }, 1, "Select GPU to run on");
+	commandLineParser.add("gpulist", { "-gl", "--listgpus" }, 0, "Display a list of available Vulkan devices");
+	commandLineParser.add("benchmark", { "-b", "--benchmark" }, 0, "Run example in benchmark mode");
+	commandLineParser.add("benchmarkwarmup", { "-bw", "--benchwarmup" }, 1, "Set warmup time for benchmark mode in seconds");
+	commandLineParser.add("benchmarkruntime", { "-br", "--benchruntime" }, 1, "Set duration time for benchmark mode in seconds");
+	commandLineParser.add("benchmarkresultfile", { "-bf", "--benchfilename" }, 1, "Set file name for benchmark results");
+	commandLineParser.add("benchmarkresultframes", { "-bt", "--benchframetimes" }, 0, "Save frame times to benchmark results file");
+	commandLineParser.add("benchmarkframes", { "-bfs", "--benchmarkframes" }, 1, "Only render the given number of frames");
+
 	commandLineParser.parse(args);
 	if (commandLineParser.isSet("help")) {
 #if defined(_WIN32)
@@ -341,14 +827,14 @@ VulkanExampleBase::VulkanExampleBase(bool enableValidation)
 		vks::tools::errorModeSilent = true;
 	}
 	if (commandLineParser.isSet("benchmarkwarmup")) {
-		benchmark.warmup = commandLineParser.getValueAsInt("benchmarkwarmup", benchmark.warmup);
+		benchmark.warmup = commandLineParser.getValueAsInt("benchmarkwarmup", 0);
 	}
 	if (commandLineParser.isSet("benchmarkruntime")) {
 		benchmark.duration = commandLineParser.getValueAsInt("benchmarkruntime", benchmark.duration);
 	}
 	if (commandLineParser.isSet("benchmarkresultfile")) {
 		benchmark.filename = commandLineParser.getValueAsString("benchmarkresultfile", benchmark.filename);
-	}	
+	}
 	if (commandLineParser.isSet("benchmarkresultframes")) {
 		benchmark.outputFrameTimes = true;
 	}
@@ -402,7 +888,7 @@ VulkanExampleBase::~VulkanExampleBase()
 	}
 	vkDestroyImageView(device, depthStencil.view, nullptr);
 	vkDestroyImage(device, depthStencil.image, nullptr);
-	vkFreeMemory(device, depthStencil.mem, nullptr);
+	vkFreeMemory(device, depthStencil.memory, nullptr);
 
 	vkDestroyPipelineCache(device, pipelineCache, nullptr);
 
@@ -459,6 +945,10 @@ VulkanExampleBase::~VulkanExampleBase()
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
 	xcb_destroy_window(connection, window);
 	xcb_disconnect(connection);
+#elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+	screen_destroy_event(screen_event);
+	screen_destroy_window(screen_window);
+	screen_destroy_context(screen_context);
 #endif
 }
 
@@ -477,15 +967,6 @@ bool VulkanExampleBase::initVulkan()
 	vks::android::loadVulkanFunctions(instance);
 #endif
 
-	// If requested, we enable the default validation layers for debugging
-	if (settings.validation)
-	{
-		// The report flags determine what type of messages for the layers will be displayed
-		// For validating (debugging) an application the error and warning bits should suffice
-		VkDebugReportFlagsEXT debugReportFlags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
-		// Additional flags include performance info, loader and layer debug messages, etc.
-		vks::debug::setupDebugging(instance, debugReportFlags, VK_NULL_HANDLE);
-	}
 
 	// Physical device
 	uint32_t gpuCount = 0;
@@ -545,6 +1026,10 @@ bool VulkanExampleBase::initVulkan()
 	// This is handled by a separate class that gets a logical device representation
 	// and encapsulates functions related to a device
 	vulkanDevice = new vks::VulkanDevice(physicalDevice);
+
+	// Derived examples can enable extensions based on the list of supported extensions read from the physical device
+	getEnabledExtensions();
+
 	VkResult res = vulkanDevice->createLogicalDevice(enabledFeatures, enabledDeviceExtensions, deviceCreatepNextChain);
 	if (res != VK_SUCCESS) {
 		vks::tools::exitFatal("Could not create Vulkan device: \n" + vks::tools::errorString(res), res);
@@ -555,9 +1040,15 @@ bool VulkanExampleBase::initVulkan()
 	// Get a graphics queue from the device
 	vkGetDeviceQueue(device, vulkanDevice->queueFamilyIndices.graphics, 0, &queue);
 
-	// Find a suitable depth format
-	VkBool32 validDepthFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
-	assert(validDepthFormat);
+	// Find a suitable depth and/or stencil format
+	VkBool32 validFormat{ false };
+	// Samples that make use of stencil will require a depth + stencil format, so we select from a different list
+	if (requiresStencil) {
+		validFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
+	} else {
+		validFormat = vks::tools::getSupportedDepthFormat(physicalDevice, &depthFormat);
+	}
+	assert(validFormat);
 
 	swapChain.connect(instance, physicalDevice, device);
 
@@ -593,6 +1084,12 @@ void VulkanExampleBase::setupConsole(std::string title)
 	freopen_s(&stream, "CONIN$", "r", stdin);
 	freopen_s(&stream, "CONOUT$", "w+", stdout);
 	freopen_s(&stream, "CONOUT$", "w+", stderr);
+	// Enable flags so we can color the output
+	HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+	DWORD dwMode = 0;
+	GetConsoleMode(consoleHandle, &dwMode);
+	dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	SetConsoleMode(consoleHandle, dwMode);
 	SetConsoleTitle(TEXT(title.c_str()));
 }
 
@@ -749,8 +1246,14 @@ void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 			paused = !paused;
 			break;
 		case KEY_F1:
-			if (settings.overlay) {
-				UIOverlay.visible = !UIOverlay.visible;
+			UIOverlay.visible = !UIOverlay.visible;
+			UIOverlay.updated = true;
+			break;
+		case KEY_F2:
+			if (camera.type == Camera::CameraType::lookat) {
+				camera.type = Camera::CameraType::firstperson;
+			}else {
+				camera.type = Camera::CameraType::lookat;
 			}
 			break;
 		case KEY_ESCAPE:
@@ -800,25 +1303,25 @@ void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 		}
 		break;
 	case WM_LBUTTONDOWN:
-		mousePos = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseButtons.left = true;
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
+		mouseState.buttons.left = true;
 		break;
 	case WM_RBUTTONDOWN:
-		mousePos = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseButtons.right = true;
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
+		mouseState.buttons.right = true;
 		break;
 	case WM_MBUTTONDOWN:
-		mousePos = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
-		mouseButtons.middle = true;
+		mouseState.position = glm::vec2((float)LOWORD(lParam), (float)HIWORD(lParam));
+		mouseState.buttons.middle = true;
 		break;
 	case WM_LBUTTONUP:
-		mouseButtons.left = false;
+		mouseState.buttons.left = false;
 		break;
 	case WM_RBUTTONUP:
-		mouseButtons.right = false;
+		mouseState.buttons.right = false;
 		break;
 	case WM_MBUTTONUP:
-		mouseButtons.middle = false;
+		mouseState.buttons.middle = false;
 		break;
 	case WM_MOUSEWHEEL:
 	{
@@ -857,6 +1360,8 @@ void VulkanExampleBase::handleMessages(HWND hWnd, UINT uMsg, WPARAM wParam, LPAR
 		resizing = false;
 		break;
 	}
+
+	OnHandleMessage(hWnd, uMsg, wParam, lParam);
 }
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* event)
@@ -896,7 +1401,7 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 							float x = AMotionEvent_getX(event, 0) - vulkanExample->touchPos.x;
 							float y = AMotionEvent_getY(event, 0) - vulkanExample->touchPos.y;
 							if ((x * x + y * y) < deadZone) {
-								vulkanExample->mouseButtons.left = true;
+								vulkanExample->mouseState.buttons.left = true;
 							}
 						};
 
@@ -920,15 +1425,15 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 						}
 						vulkanExample->touchPos.x = AMotionEvent_getX(event, 0);
 						vulkanExample->touchPos.y = AMotionEvent_getY(event, 0);
-						vulkanExample->mousePos.x = AMotionEvent_getX(event, 0);
-						vulkanExample->mousePos.y = AMotionEvent_getY(event, 0);
+						vulkanExample->mouseState.position.x = AMotionEvent_getX(event, 0);
+						vulkanExample->mouseState.position.y = AMotionEvent_getY(event, 0);
 						break;
 					}
 					case AMOTION_EVENT_ACTION_MOVE: {
 						bool handled = false;
 						if (vulkanExample->settings.overlay) {
 							ImGuiIO& io = ImGui::GetIO();
-							handled = io.WantCaptureMouse;
+							handled = io.WantCaptureMouse && vulkanExample->UIOverlay.visible;
 						}
 						if (!handled) {
 							int32_t eventX = AMotionEvent_getX(event, 0);
@@ -939,8 +1444,6 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 
 							vulkanExample->camera.rotate(glm::vec3(deltaX, 0.0f, 0.0f));
 							vulkanExample->camera.rotate(glm::vec3(0.0f, -deltaY, 0.0f));
-
-							vulkanExample->viewChanged();
 
 							vulkanExample->touchPos.x = eventX;
 							vulkanExample->touchPos.y = eventY;
@@ -980,14 +1483,21 @@ int32_t VulkanExampleBase::handleAppInput(struct android_app* app, AInputEvent* 
 		case AKEYCODE_BUTTON_Y:
 			vulkanExample->keyPressed(GAMEPAD_BUTTON_Y);
 			break;
+		case AKEYCODE_1:							// support keyboards with no function keys
+		case AKEYCODE_F1:
 		case AKEYCODE_BUTTON_L1:
-			vulkanExample->keyPressed(GAMEPAD_BUTTON_L1);
+			vulkanExample->UIOverlay.visible = !vulkanExample->UIOverlay.visible;
+			vulkanExample->UIOverlay.updated = true;
 			break;
 		case AKEYCODE_BUTTON_R1:
 			vulkanExample->keyPressed(GAMEPAD_BUTTON_R1);
 			break;
+		case AKEYCODE_P:
 		case AKEYCODE_BUTTON_START:
 			vulkanExample->paused = !vulkanExample->paused;
+			break;
+		default:
+			vulkanExample->keyPressed(keyCode);		// handle example-specific key press events
 			break;
 		};
 
@@ -1017,7 +1527,7 @@ void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 		{
 			if (vulkanExample->initVulkan()) {
 				vulkanExample->prepareForRendering();
-				assert(vulkanExample->prepared);
+				assert(vulkanExample->prepareForRendering);
 			}
 			else {
 				LOGE("Could not initialize Vulkan, exiting!");
@@ -1050,6 +1560,8 @@ void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 #if defined(VK_EXAMPLE_XCODE_GENERATED)
 @interface AppDelegate : NSObject<NSApplicationDelegate>
 {
+@public
+	VulkanExampleBase *vulkanExample;
 }
 
 @end
@@ -1058,12 +1570,51 @@ void VulkanExampleBase::handleAppCommand(android_app * app, int32_t cmd)
 {
 }
 
+// SRS - Dispatch rendering loop onto a queue for max frame rate concurrent rendering vs displayLink vsync rendering
+//     - vsync command line option (-vs) on macOS now works like other platforms (using VK_PRESENT_MODE_FIFO_KHR)
+dispatch_group_t concurrentGroup;
+
+- (void)applicationDidFinishLaunching:(NSNotification *)aNotification
+{
+	[NSApp activateIgnoringOtherApps:YES];		// SRS - Make sure app window launches in front of Xcode window
+
+	concurrentGroup = dispatch_group_create();
+	dispatch_queue_t concurrentQueue = dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0);
+	dispatch_group_async(concurrentGroup, concurrentQueue, ^{
+
+		while (!vulkanExample->quit) {
+			vulkanExample->displayLinkOutputCb();
+		}
+	});
+
+	// SRS - When benchmarking, set up termination notification on main thread when concurrent queue completes
+	if (vulkanExample->benchmark.active) {
+		dispatch_queue_t notifyQueue = dispatch_get_main_queue();
+		dispatch_group_notify(concurrentGroup, notifyQueue, ^{ [NSApp terminate:nil]; });
+	}
+}
+
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender
 {
 	return YES;
 }
 
+// SRS - Tell rendering loop to quit, then wait for concurrent queue to terminate before deleting vulkanExample
+- (void)applicationWillTerminate:(NSNotification *)aNotification
+{
+	vulkanExample->quit = YES;
+	dispatch_group_wait(concurrentGroup, DISPATCH_TIME_FOREVER);
+	vkDeviceWaitIdle(vulkanExample->vulkanDevice->logicalDevice);
+	delete(vulkanExample);
+}
+
 @end
+
+const std::string getAssetPath() {
+    return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../assets/"].UTF8String;
+}
+
+const std::string getShaderBasePath() { return [NSBundle.mainBundle.resourcePath stringByAppendingString: @"/../../shaders/"].UTF8String; }
 
 static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CVTimeStamp *inNow,
 	const CVTimeStamp *inOutputTime, CVOptionFlags flagsIn, CVOptionFlags *flagsOut,
@@ -1104,7 +1655,9 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 - (void)viewDidMoveToWindow
 {
 	CVDisplayLinkCreateWithActiveCGDisplays(&displayLink);
-	CVDisplayLinkSetOutputCallback(displayLink, &displayLinkOutputCallback, vulkanExample);
+	// SRS - Disable displayLink vsync rendering in favour of max frame rate concurrent rendering
+	//     - vsync command line option (-vs) on macOS now works like other platforms (using VK_PRESENT_MODE_FIFO_KHR)
+	//CVDisplayLinkSetOutputCallback(displayLink, &displayLinkOutputCallback, vulkanExample);
 	CVDisplayLinkStart(displayLink);
 }
 
@@ -1113,29 +1666,41 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 	return YES;
 }
 
+- (BOOL)acceptsFirstMouse:(NSEvent *)event
+{
+	return YES;
+}
+
 - (void)keyDown:(NSEvent*)event
 {
 	switch (event.keyCode)
 	{
-		case kVK_ANSI_P:
+		case KEY_P:
 			vulkanExample->paused = !vulkanExample->paused;
 			break;
-		case kVK_Escape:
+		case KEY_1:										// support keyboards with no function keys
+		case KEY_F1:
+			vulkanExample->UIOverlay.visible = !vulkanExample->UIOverlay.visible;
+			vulkanExample->UIOverlay.updated = true;
+			break;
+		case KEY_DELETE:								// support keyboards with no escape key
+		case KEY_ESCAPE:
 			[NSApp terminate:nil];
 			break;
-		case kVK_ANSI_W:
+		case KEY_W:
 			vulkanExample->camera.keys.up = true;
 			break;
-		case kVK_ANSI_S:
+		case KEY_S:
 			vulkanExample->camera.keys.down = true;
 			break;
-		case kVK_ANSI_A:
+		case KEY_A:
 			vulkanExample->camera.keys.left = true;
 			break;
-		case kVK_ANSI_D:
+		case KEY_D:
 			vulkanExample->camera.keys.right = true;
 			break;
 		default:
+			vulkanExample->keyPressed(event.keyCode);	// handle example-specific key press events
 			break;
 	}
 }
@@ -1144,17 +1709,17 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 {
 	switch (event.keyCode)
 	{
-		case kVK_ANSI_W:
+		case KEY_W:
 			vulkanExample->camera.keys.up = false;
 			break;
-		case kVK_ANSI_S:
+		case KEY_S:
 			vulkanExample->camera.keys.down = false;
 			break;
-		case kVK_ANSI_A:
+		case KEY_A:
 			vulkanExample->camera.keys.left = false;
-		break;
-			case kVK_ANSI_D:
-		vulkanExample->camera.keys.right = false;
+			break;
+		case KEY_D:
+			vulkanExample->camera.keys.right = false;
 			break;
 		default:
 			break;
@@ -1172,28 +1737,52 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 - (void)mouseDown:(NSEvent *)event
 {
 	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mousePos = glm::vec2(point.x, point.y);
-	vulkanExample->mouseButtons.left = true;
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
+	vulkanExample->mouseState.buttons.left = true;
 }
 
 - (void)mouseUp:(NSEvent *)event
 {
+	vulkanExample->mouseState.buttons.left = false;
+}
+
+- (void)rightMouseDown:(NSEvent *)event
+{
 	auto point = [self getMouseLocalPoint:event];
-	vulkanExample->mousePos = glm::vec2(point.x, point.y);
-	vulkanExample->mouseButtons.left = false;
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
+	vulkanExample->mouseState.buttons.right = true;
+}
+
+- (void)rightMouseUp:(NSEvent *)event
+{
+	vulkanExample->mouseState.buttons.right = false;
 }
 
 - (void)otherMouseDown:(NSEvent *)event
 {
-	vulkanExample->mouseButtons.right = true;
+	auto point = [self getMouseLocalPoint:event];
+	vulkanExample->mouseState.position = glm::vec2(point.x, point.y);
+	vulkanExample->mouseState.buttons.middle = true;
 }
 
 - (void)otherMouseUp:(NSEvent *)event
 {
-	vulkanExample->mouseButtons.right = false;
+	vulkanExample->mouseState.buttons.middle = false;
 }
 
 - (void)mouseDragged:(NSEvent *)event
+{
+	auto point = [self getMouseLocalPoint:event];
+	vulkanExample->mouseDragged(point.x, point.y);
+}
+
+- (void)rightMouseDragged:(NSEvent *)event
+{
+	auto point = [self getMouseLocalPoint:event];
+	vulkanExample->mouseDragged(point.x, point.y);
+}
+
+- (void)otherMouseDragged:(NSEvent *)event
 {
 	auto point = [self getMouseLocalPoint:event];
 	vulkanExample->mouseDragged(point.x, point.y);
@@ -1210,8 +1799,12 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 	short wheelDelta = [event deltaY];
 	vulkanExample->camera.translate(glm::vec3(0.0f, 0.0f,
 		-(float)wheelDelta * 0.05f * vulkanExample->camera.movementSpeed));
+	vulkanExample->viewUpdated = true;
 }
 
+// SRS - Window resizing already handled by resizeWindow() in VulkanExampleBase::submitFrame()
+//	   - handling window resize events here is redundant and can cause thread interaction problems
+/*
 - (NSSize)windowWillResize:(NSWindow *)sender toSize:(NSSize)frameSize
 {
 	CVDisplayLinkStop(displayLink);
@@ -1224,6 +1817,17 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 	vulkanExample->windowDidResize();
 	CVDisplayLinkStart(displayLink);
 }
+*/
+
+- (void)windowWillEnterFullScreen:(NSNotification *)notification
+{
+	vulkanExample->settings.fullscreen = true;
+}
+
+- (void)windowWillExitFullScreen:(NSNotification *)notification
+{
+	vulkanExample->settings.fullscreen = false;
+}
 
 - (BOOL)windowShouldClose:(NSWindow *)sender
 {
@@ -1233,6 +1837,7 @@ static CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CV
 - (void)windowWillClose:(NSNotification *)notification
 {
 	CVDisplayLinkStop(displayLink);
+	CVDisplayLinkRelease(displayLink);
 }
 
 @end
@@ -1243,7 +1848,9 @@ void* VulkanExampleBase::setupWindow(void* view)
 #if defined(VK_EXAMPLE_XCODE_GENERATED)
 	NSApp = [NSApplication sharedApplication];
 	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-	[NSApp setDelegate:[AppDelegate new]];
+	auto nsAppDelegate = [AppDelegate new];
+	nsAppDelegate->vulkanExample = this;
+	[NSApp setDelegate:nsAppDelegate];
 
 	const auto kContentRect = NSMakeRect(0.0f, 0.0f, width, height);
 	const auto kWindowStyle = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable;
@@ -1256,6 +1863,9 @@ void* VulkanExampleBase::setupWindow(void* view)
 	[window setAcceptsMouseMovedEvents:YES];
 	[window center];
 	[window makeKeyAndOrderFront:nil];
+	if (settings.fullscreen) {
+		[window toggleFullScreen:nil];
+	}
 
 	auto nsView = [[View alloc] initWithFrame:kContentRect];
 	nsView->vulkanExample = this;
@@ -1270,6 +1880,17 @@ void* VulkanExampleBase::setupWindow(void* view)
 
 void VulkanExampleBase::displayLinkOutputCb()
 {
+#if defined(VK_EXAMPLE_XCODE_GENERATED)
+	if (benchmark.active) {
+		benchmark.run([=] { render(); }, vulkanDevice->properties);
+		if (benchmark.filename != "") {
+			benchmark.saveResults();
+		}
+		quit = true;	// SRS - quit NSApp rendering loop when benchmarking complete
+		return;
+	}
+#endif
+
 	if (prepared)
 		nextFrame();
 }
@@ -1402,13 +2023,13 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent *event)
 		switch (event->button)
 		{
 		case DIBI_LEFT:
-			mouseButtons.left = true;
+			mouseState.buttons.left = true;
 			break;
 		case DIBI_MIDDLE:
-			mouseButtons.middle = true;
+			mouseState.buttons.middle = true;
 			break;
 		case DIBI_RIGHT:
-			mouseButtons.right = true;
+			mouseState.buttons.right = true;
 			break;
 		default:
 			break;
@@ -1418,13 +2039,13 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent *event)
 		switch (event->button)
 		{
 		case DIBI_LEFT:
-			mouseButtons.left = false;
+			mouseState.buttons.left = false;
 			break;
 		case DIBI_MIDDLE:
-			mouseButtons.middle = false;
+			mouseState.buttons.middle = false;
 			break;
 		case DIBI_RIGHT:
-			mouseButtons.right = false;
+			mouseState.buttons.right = false;
 			break;
 		default:
 			break;
@@ -1449,9 +2070,8 @@ void VulkanExampleBase::handleEvent(const DFBWindowEvent *event)
 				paused = !paused;
 				break;
 			case KEY_F1:
-				if (settings.overlay) {
-					settings.overlay = !settings.overlay;
-				}
+				UIOverlay.visible = !UIOverlay.visible;
+				UIOverlay.updated = true;
 				break;
 			default:
 				break;
@@ -1541,13 +2161,13 @@ void VulkanExampleBase::pointerButton(struct wl_pointer *pointer,
 	switch (button)
 	{
 	case BTN_LEFT:
-		mouseButtons.left = !!state;
+		mouseState.buttons.left = !!state;
 		break;
 	case BTN_MIDDLE:
-		mouseButtons.middle = !!state;
+		mouseState.buttons.middle = !!state;
 		break;
 	case BTN_RIGHT:
-		mouseButtons.right = !!state;
+		mouseState.buttons.right = !!state;
 		break;
 	default:
 		break;
@@ -1624,10 +2244,12 @@ void VulkanExampleBase::keyboardKey(struct wl_keyboard *keyboard,
 			paused = !paused;
 		break;
 	case KEY_F1:
-		if (state && settings.overlay)
-			settings.overlay = !settings.overlay;
+		if (state) {
+			UIOverlay.visible = !UIOverlay.visible;
+			UIOverlay.updated = true;
+		}
 		break;
-	case KEY_ESC:
+	case KEY_ESCAPE:
 		quit = true;
 		break;
 	}
@@ -1946,22 +2568,22 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
 	{
 		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
 		if (press->detail == XCB_BUTTON_INDEX_1)
-			mouseButtons.left = true;
+			mouseState.buttons.left = true;
 		if (press->detail == XCB_BUTTON_INDEX_2)
-			mouseButtons.middle = true;
+			mouseState.buttons.middle = true;
 		if (press->detail == XCB_BUTTON_INDEX_3)
-			mouseButtons.right = true;
+			mouseState.buttons.right = true;
 	}
 	break;
 	case XCB_BUTTON_RELEASE:
 	{
 		xcb_button_press_event_t *press = (xcb_button_press_event_t *)event;
 		if (press->detail == XCB_BUTTON_INDEX_1)
-			mouseButtons.left = false;
+			mouseState.buttons.left = false;
 		if (press->detail == XCB_BUTTON_INDEX_2)
-			mouseButtons.middle = false;
+			mouseState.buttons.middle = false;
 		if (press->detail == XCB_BUTTON_INDEX_3)
-			mouseButtons.right = false;
+			mouseState.buttons.right = false;
 	}
 	break;
 	case XCB_KEY_PRESS:
@@ -1985,9 +2607,8 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
 				paused = !paused;
 				break;
 			case KEY_F1:
-				if (settings.overlay) {
-					settings.overlay = !settings.overlay;
-				}
+				UIOverlay.visible = !UIOverlay.visible;
+				UIOverlay.updated = true;
 				break;
 		}
 	}
@@ -2037,130 +2658,313 @@ void VulkanExampleBase::handleEvent(const xcb_generic_event_t *event)
 		break;
 	}
 }
+#elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+void VulkanExampleBase::handleEvent()
+{
+	int size[2] = { 0, 0 };
+	screen_window_t win;
+	static int mouse_buttons = 0;
+	int pos[2];
+	int val;
+	int keyflags;
+	int rc;
+
+	while (!screen_get_event(screen_context, screen_event, paused ? ~0 : 0)) {
+		rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_TYPE, &val);
+		if (rc) {
+			printf("Cannot get SCREEN_PROPERTY_TYPE of the event! (%s)\n", strerror(errno));
+			fflush(stdout);
+			quit = true;
+			break;
+		}
+		if (val == SCREEN_EVENT_NONE) {
+			break;
+		}
+		switch (val) {
+			case SCREEN_EVENT_KEYBOARD:
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_FLAGS, &keyflags);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_FLAGS of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_SYM, &val);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_SYM of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				if ((keyflags & KEY_SYM_VALID) == KEY_SYM_VALID) {
+					switch (val) {
+						case KEYCODE_ESCAPE:
+							quit = true;
+							break;
+						case KEYCODE_W:
+							if (keyflags & KEY_DOWN) {
+								camera.keys.up = true;
+							} else {
+								camera.keys.up = false;
+							}
+							break;
+						case KEYCODE_S:
+							if (keyflags & KEY_DOWN) {
+								camera.keys.down = true;
+							} else {
+								camera.keys.down = false;
+							}
+							break;
+						case KEYCODE_A:
+							if (keyflags & KEY_DOWN) {
+								camera.keys.left = true;
+							} else {
+								camera.keys.left = false;
+							}
+							break;
+						case KEYCODE_D:
+							if (keyflags & KEY_DOWN) {
+								camera.keys.right = true;
+							} else {
+								camera.keys.right = false;
+							}
+							break;
+						case KEYCODE_P:
+							paused = !paused;
+							break;
+						case KEYCODE_F1:
+							UIOverlay.visible = !UIOverlay.visible;
+							UIOverlay.updated = true;
+							break;
+						default:
+							break;
+					}
+
+					if ((keyflags & KEY_DOWN) == KEY_DOWN) {
+						if ((val >= 0x20) && (val <= 0xFF)) {
+							keyPressed(val);
+						}
+					}
+				}
+				break;
+			case SCREEN_EVENT_PROPERTY:
+				rc = screen_get_event_property_pv(screen_event, SCREEN_PROPERTY_WINDOW, (void **)&win);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_WINDOW of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_NAME, &val);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_NAME of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				if (win == screen_window) {
+					switch(val) {
+						case SCREEN_PROPERTY_SIZE:
+							rc = screen_get_window_property_iv(win, SCREEN_PROPERTY_SIZE, size);
+							if (rc) {
+								printf("Cannot get SCREEN_PROPERTY_SIZE of the window in the event! (%s)\n", strerror(errno));
+								fflush(stdout);
+								quit = true;
+								break;
+							}
+							width = size[0];
+							height = size[1];
+							resizeWindow();
+							break;
+						default:
+							/* We are not interested in any other events for now */
+							break;
+						}
+				}
+				break;
+			case SCREEN_EVENT_POINTER:
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_BUTTONS, &val);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_BUTTONS of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				if ((mouse_buttons & SCREEN_LEFT_MOUSE_BUTTON) == 0) {
+					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == SCREEN_LEFT_MOUSE_BUTTON) {
+						mouseState.buttons.left = true;
+					}
+				} else {
+					if ((val & SCREEN_LEFT_MOUSE_BUTTON) == 0) {
+						mouseState.buttons.left = false;
+					}
+				}
+				if ((mouse_buttons & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {
+					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == SCREEN_RIGHT_MOUSE_BUTTON) {
+						mouseState.buttons.right = true;
+					}
+				} else {
+					if ((val & SCREEN_RIGHT_MOUSE_BUTTON) == 0) {
+						mouseState.buttons.right = false;
+					}
+				}
+				if ((mouse_buttons & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {
+					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == SCREEN_MIDDLE_MOUSE_BUTTON) {
+						mouseState.buttons.middle = true;
+					}
+				} else {
+					if ((val & SCREEN_MIDDLE_MOUSE_BUTTON) == 0) {
+						mouseState.buttons.middle = false;
+					}
+				}
+				mouse_buttons = val;
+
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_MOUSE_WHEEL, &val);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_MOUSE_WHEEL of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				if (val != 0) {
+					camera.translate(glm::vec3(0.0f, 0.0f, (float)val * 0.005f));
+					viewUpdated = true;
+				}
+
+				rc = screen_get_event_property_iv(screen_event, SCREEN_PROPERTY_POSITION, pos);
+				if (rc) {
+					printf("Cannot get SCREEN_PROPERTY_DISPLACEMENT of the event! (%s)\n", strerror(errno));
+					fflush(stdout);
+					quit = true;
+					break;
+				}
+				if ((pos[0] != 0) || (pos[1] != 0)) {
+					handleMouseMove(pos[0], pos[1]);
+				}
+				updateOverlay();
+				break;
+		}
+	}
+}
+
+void VulkanExampleBase::setupWindow()
+{
+	const char *idstr = name.c_str();
+	int size[2];
+	int usage = SCREEN_USAGE_VULKAN;
+	int rc;
+
+	if (screen_pipeline_set) {
+		usage |= SCREEN_USAGE_OVERLAY;
+	}
+
+	rc = screen_create_context(&screen_context, 0);
+	if (rc) {
+		printf("Cannot create QNX Screen context!\n");
+		fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
+	rc = screen_create_window(&screen_window, screen_context);
+	if (rc) {
+		printf("Cannot create QNX Screen window!\n");
+		fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
+	rc = screen_create_event(&screen_event);
+	if (rc) {
+		printf("Cannot create QNX Screen event!\n");
+		fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
+
+	/* Set window caption */
+	screen_set_window_property_cv(screen_window, SCREEN_PROPERTY_ID_STRING, strlen(idstr), idstr);
+
+	/* Setup VULKAN usage flags */
+	rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_USAGE, &usage);
+	if (rc) {
+		printf("Cannot set SCREEN_USAGE_VULKAN flag!\n");
+		fflush(stdout);
+		exit(EXIT_FAILURE);
+	}
+
+	if ((width == 0) || (height == 0) || (settings.fullscreen) || use_window_size) {
+		rc = screen_get_window_property_iv(screen_window, SCREEN_PROPERTY_SIZE, size);
+		if (rc) {
+			printf("Cannot obtain current window size!\n");
+			fflush(stdout);
+			exit(EXIT_FAILURE);
+		}
+		width = size[0];
+		height = size[1];
+	} else {
+		size[0] = width;
+		size[1] = height;
+		rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_SIZE, size);
+		if (rc) {
+			printf("Cannot set window size!\n");
+			fflush(stdout);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (screen_pos_set) {
+		rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_POSITION, screen_pos);
+		if (rc) {
+			printf("Cannot set window position!\n");
+			fflush(stdout);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (screen_pipeline_set) {
+		rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_PIPELINE, &screen_pipeline);
+		if (rc) {
+			printf("Cannot set pipeline id!\n");
+			fflush(stdout);
+			exit(EXIT_FAILURE);
+		}
+	}
+
+	if (screen_zorder_set) {
+		rc = screen_set_window_property_iv(screen_window, SCREEN_PROPERTY_ZORDER, &screen_zorder);
+		if (rc) {
+			printf("Cannot set z-order of the window!\n");
+			fflush(stdout);
+			exit(EXIT_FAILURE);
+		}
+	}
+}
 #else
 void VulkanExampleBase::setupWindow()
 {
 }
 #endif
 
-VkResult VulkanExampleBase::createInstance(bool enableValidation)
-{
-	this->settings.validation = enableValidation;
-
-	// Validation can also be forced via a define
-#if defined(_VALIDATION)
-	this->settings.validation = true;
-#endif
-
-	VkApplicationInfo appInfo = {};
-	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	appInfo.pApplicationName = name.c_str();
-	appInfo.pEngineName = name.c_str();
-	appInfo.apiVersion = apiVersion;
-
-	std::vector<const char*> instanceExtensions = { VK_KHR_SURFACE_EXTENSION_NAME };
-
-	// Enable surface extensions depending on os
-#if defined(_WIN32)
-	instanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	instanceExtensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
-#elif defined(_DIRECT2DISPLAY)
-	instanceExtensions.push_back(VK_KHR_DISPLAY_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	instanceExtensions.push_back(VK_EXT_DIRECTFB_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	instanceExtensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-	instanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_IOS_MVK)
-	instanceExtensions.push_back(VK_MVK_IOS_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_MACOS_MVK)
-	instanceExtensions.push_back(VK_MVK_MACOS_SURFACE_EXTENSION_NAME);
-#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-	instanceExtensions.push_back(VK_EXT_HEADLESS_SURFACE_EXTENSION_NAME);
-#endif
-
-	// Get extensions supported by the instance and store for later use
-	uint32_t extCount = 0;
-	vkEnumerateInstanceExtensionProperties(nullptr, &extCount, nullptr);
-	if (extCount > 0)
-	{
-		std::vector<VkExtensionProperties> extensions(extCount);
-		if (vkEnumerateInstanceExtensionProperties(nullptr, &extCount, &extensions.front()) == VK_SUCCESS)
-		{
-			for (VkExtensionProperties extension : extensions)
-			{
-				supportedInstanceExtensions.push_back(extension.extensionName);
-			}
-		}
-	}
-
-	// Enabled requested instance extensions
-	if (enabledInstanceExtensions.size() > 0)
-	{
-		for (const char * enabledExtension : enabledInstanceExtensions)
-		{
-			// Output message if requested extension is not available
-			if (std::find(supportedInstanceExtensions.begin(), supportedInstanceExtensions.end(), enabledExtension) == supportedInstanceExtensions.end())
-			{
-				std::cerr << "Enabled instance extension \"" << enabledExtension << "\" is not present at instance level\n";
-			}
-			instanceExtensions.push_back(enabledExtension);
-		}
-	}
-
-	VkInstanceCreateInfo instanceCreateInfo = {};
-	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	instanceCreateInfo.pNext = NULL;
-	instanceCreateInfo.pApplicationInfo = &appInfo;
-	if (instanceExtensions.size() > 0)
-	{
-		if (settings.validation)
-		{
-			instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-		}
-		instanceCreateInfo.enabledExtensionCount = (uint32_t)instanceExtensions.size();
-		instanceCreateInfo.ppEnabledExtensionNames = instanceExtensions.data();
-	}
-
-	// The VK_LAYER_KHRONOS_validation contains all current validation functionality.
-	// Note that on Android this layer requires at least NDK r20
-	const char* validationLayerName = "VK_LAYER_KHRONOS_validation";
-	if (settings.validation)
-	{
-		// Check if this layer is available at instance level
-		uint32_t instanceLayerCount;
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, nullptr);
-		std::vector<VkLayerProperties> instanceLayerProperties(instanceLayerCount);
-		vkEnumerateInstanceLayerProperties(&instanceLayerCount, instanceLayerProperties.data());
-		bool validationLayerPresent = false;
-		for (VkLayerProperties layer : instanceLayerProperties) {
-			if (strcmp(layer.layerName, validationLayerName) == 0) {
-				validationLayerPresent = true;
-				break;
-			}
-		}
-		if (validationLayerPresent) {
-			instanceCreateInfo.ppEnabledLayerNames = &validationLayerName;
-			instanceCreateInfo.enabledLayerCount = 1;
-		}
-		else {
-			std::cerr << "Validation layer VK_LAYER_KHRONOS_validation not present, validation is disabled";
-		}
-	}
-	return vkCreateInstance(&instanceCreateInfo, nullptr, &instance);
-}
-
-void VulkanExampleBase::viewChanged() {}
-
 void VulkanExampleBase::keyPressed(uint32_t) {}
 
 void VulkanExampleBase::mouseMoved(double x, double y, bool & handled) {}
 
-void VulkanExampleBase::windowResized() {}
-
 void VulkanExampleBase::buildCommandBuffersForPreRenderPrmitives() {}
+
+void VulkanExampleBase::createSynchronizationPrimitives()
+{
+	// Wait fences to sync command buffer access
+	VkFenceCreateInfo fenceCreateInfo = vks::initializers::fenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
+	waitFences.resize(drawCmdBuffers.size());
+	for (auto& fence : waitFences) {
+		VK_CHECK_RESULT(vkCreateFence(device, &fenceCreateInfo, nullptr, &fence));
+	}
+}
+
+void VulkanExampleBase::createCommandPool()
+{
+	VkCommandPoolCreateInfo cmdPoolInfo = {};
+	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	cmdPoolInfo.queueFamilyIndex = swapChain.queueNodeIndex;
+	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	VK_CHECK_RESULT(vkCreateCommandPool(device, &cmdPoolInfo, nullptr, &cmdPool));
+}
 
 void VulkanExampleBase::setupDepthStencil()
 {
@@ -2183,8 +2987,8 @@ void VulkanExampleBase::setupDepthStencil()
 	memAllloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	memAllloc.allocationSize = memReqs.size;
 	memAllloc.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &depthStencil.mem));
-	VK_CHECK_RESULT(vkBindImageMemory(device, depthStencil.image, depthStencil.mem, 0));
+	VK_CHECK_RESULT(vkAllocateMemory(device, &memAllloc, nullptr, &depthStencil.memory));
+	VK_CHECK_RESULT(vkBindImageMemory(device, depthStencil.image, depthStencil.memory, 0));
 
 	VkImageViewCreateInfo imageViewCI{};
 	imageViewCI.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -2275,19 +3079,19 @@ void VulkanExampleBase::setupRenderPass()
 
 	dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependencies[0].dstSubpass = 0;
-	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[0].srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[0].srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+	dependencies[0].srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	dependencies[0].dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+	dependencies[0].dependencyFlags = 0;
 
-	dependencies[1].srcSubpass = 0;
-	dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependencies[1].dstSubpass = 0;
 	dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-	dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-	dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+	dependencies[1].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependencies[1].srcAccessMask = 0;
+	dependencies[1].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+	dependencies[1].dependencyFlags = 0;
 
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -2303,563 +3107,128 @@ void VulkanExampleBase::setupRenderPass()
 
 void VulkanExampleBase::getEnabledFeatures() {}
 
-void VulkanExampleBase::prepareForRendering()
+void VulkanExampleBase::getEnabledExtensions() {}
+
+void VulkanExampleBase::resizeWindow()
 {
-	if (vulkanDevice->enableDebugMarkers) {
-		vks::debugmarker::setup(device);
+	if (!prepared)
+	{
+		return;
 	}
-	initSwapchain();
-	createCommandPool();
+	prepared = false;
+	resized = true;
+
+	// Ensure all operations on the device have been finished before destroying resources
+	vkDeviceWaitIdle(device);
+
+	// Recreate swap chain
+	width = destWidth;
+	height = destHeight;
 	setupSwapChain();
-	createCommandBuffers();
-	createSynchronizationPrimitives();
+
+	// Recreate the frame buffers
+	vkDestroyImageView(device, depthStencil.view, nullptr);
+	vkDestroyImage(device, depthStencil.image, nullptr);
+	vkFreeMemory(device, depthStencil.memory, nullptr);
 	setupDepthStencil();
-	setupRenderPass();
-	createPipelineCache();
-	setupFrameBuffer();
-	settings.overlay = settings.overlay && (!benchmark.active);
-	if (settings.overlay) {
-		UIOverlay.device = vulkanDevice;
-		UIOverlay.queue = queue;
-		UIOverlay.shaders = {
-			loadShader(getShadersPath() + "base/uioverlay.vert.spv", VK_SHADER_STAGE_VERTEX_BIT),
-			loadShader(getShadersPath() + "base/uioverlay.frag.spv", VK_SHADER_STAGE_FRAGMENT_BIT),
-		};
-		UIOverlay.prepareResources();
-		UIOverlay.preparePipeline(pipelineCache, renderPass);
+	for (uint32_t i = 0; i < frameBuffers.size(); i++) {
+		vkDestroyFramebuffer(device, frameBuffers[i], nullptr);
 	}
-}
+	setupFrameBuffer();
 
-VkPipelineShaderStageCreateInfo VulkanExampleBase::loadShader(std::string fileName, VkShaderStageFlagBits stage)
-{
-	VkPipelineShaderStageCreateInfo shaderStage = {};
-	shaderStage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	shaderStage.stage = stage;
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-	shaderStage.module = vks::tools::loadShader(androidApp->activity->assetManager, fileName.c_str(), device);
-#else
-	shaderStage.module = vks::tools::loadShader(fileName.c_str(), device);
-#endif
-	shaderStage.pName = "main";
-	assert(shaderStage.module != VK_NULL_HANDLE);
-	shaderModules.push_back(shaderStage.module);
-	return shaderStage;
-}
-
-void VulkanExampleBase::renderLoop()
-{
-	if (benchmark.active) {
-		benchmark.run([=] { render(); }, vulkanDevice->properties);
-		vkDeviceWaitIdle(device);
-		if (benchmark.filename != "") {
-			benchmark.saveResults();
+	if ((width > 0.0f) && (height > 0.0f)) {
+		if (settings.overlay) {
+			UIOverlay.resize(width, height);
 		}
+	}
+
+	// Command buffers need to be recreated as they may store
+	// references to the recreated frame buffer
+	destroyCommandBuffers();
+	createCommandBuffers();
+	buildCommandBuffersForPreRenderPrmitives();
+
+	// SRS - Recreate fences in case number of swapchain images has changed on resize
+	for (auto& fence : waitFences) {
+		vkDestroyFence(device, fence, nullptr);
+	}
+	createSynchronizationPrimitives();
+
+	vkDeviceWaitIdle(device);
+
+	if ((width > 0.0f) && (height > 0.0f)) {
+		camera.updateAspectRatio((float)width / (float)height);
+	}
+
+	// Notify derived class
+	windowResized();
+
+	prepared = true;
+}
+
+void VulkanExampleBase::handleMouseMove(int32_t x, int32_t y)
+{
+	int32_t dx = (int32_t)mouseState.position.x - x;
+	int32_t dy = (int32_t)mouseState.position.y - y;
+
+	bool handled = false;
+
+	if (settings.overlay) {
+		ImGuiIO& io = ImGui::GetIO();
+		handled = io.WantCaptureMouse && UIOverlay.visible;
+	}
+	mouseMoved((float)x, (float)y, handled);
+
+	if (handled) {
+		mouseState.position = glm::vec2((float)x, (float)y);
 		return;
 	}
 
-	destWidth = width;
-	destHeight = height;
-	lastTimestamp = std::chrono::high_resolution_clock::now();
+	if (mouseState.buttons.left) {
+		camera.rotate(glm::vec3(dy * camera.rotationSpeed, -dx * camera.rotationSpeed, 0.0f));
+		viewUpdated = true;
+	}
+	if (mouseState.buttons.right) {
+		camera.translate(glm::vec3(-0.0f, 0.0f, dy * .005f));
+		viewUpdated = true;
+	}
+	if (mouseState.buttons.middle) {
+		camera.translate(glm::vec3(-dx * 0.005f, -dy * 0.005f, 0.0f));
+		viewUpdated = true;
+	}
+	mouseState.position = glm::vec2((float)x, (float)y);
+}
+
+void VulkanExampleBase::windowResized() {}
+
+void VulkanExampleBase::initSwapchain()
+{
 #if defined(_WIN32)
-	MSG msg;
-	bool quitMessageReceived = false;
-	while (!quitMessageReceived) {
-		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			if (msg.message == WM_QUIT) {
-				quitMessageReceived = true;
-				break;
-			}
-		}
-		if (prepared && !IsIconic(window)) {
-			nextFrame();
-		}
-	}
+	swapChain.initSurface(windowInstance, window);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-	while (1)
-	{
-		int ident;
-		int events;
-		struct android_poll_source* source;
-		bool destroy = false;
-
-		focused = true;
-
-		while ((ident = ALooper_pollAll(focused ? 0 : -1, NULL, &events, (void**)&source)) >= 0)
-		{
-			if (source != NULL)
-			{
-				source->process(androidApp, source);
-			}
-			if (androidApp->destroyRequested != 0)
-			{
-				LOGD("Android app destroy requested");
-				destroy = true;
-				break;
-			}
-		}
-
-		// App destruction requested
-		// Exit loop, example will be destroyed in application main
-		if (destroy)
-		{
-			ANativeActivity_finish(androidApp->activity);
-			break;
-		}
-
-		// Render frame
-		if (prepared)
-		{
-			auto tStart = std::chrono::high_resolution_clock::now();
-			render();
-			frameCounter++;
-			auto tEnd = std::chrono::high_resolution_clock::now();
-			auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-			frameTimer = tDiff / 1000.0f;
-			camera.update(frameTimer);
-			// Convert to clamped timer value
-			if (!paused)
-			{
-				timer += timerSpeed * frameTimer;
-				if (timer > 1.0)
-				{
-					timer -= 1.0f;
-				}
-			}
-			float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-			if (fpsTimer > 1000.0f)
-			{
-				lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-				frameCounter = 0;
-				lastTimestamp = tEnd;
-			}
-
-			// TODO: Cap UI overlay update rates/only issue when update requested
-			updateOverlay();
-
-			bool updateView = false;
-
-			// Check touch state (for movement)
-			if (touchDown) {
-				touchTimer += frameTimer;
-			}
-			if (touchTimer >= 1.0) {
-				camera.keys.up = true;
-				viewChanged();
-			}
-
-			// Check gamepad state
-			const float deadZone = 0.0015f;
-			// todo : check if gamepad is present
-			// todo : time based and relative axis positions
-			if (camera.type != Camera::CameraType::firstperson)
-			{
-				// Rotate
-				if (std::abs(gamePadState.axisLeft.x) > deadZone)
-				{
-					camera.rotate(glm::vec3(0.0f, gamePadState.axisLeft.x * 0.5f, 0.0f));
-					updateView = true;
-				}
-				if (std::abs(gamePadState.axisLeft.y) > deadZone)
-				{
-					camera.rotate(glm::vec3(gamePadState.axisLeft.y * 0.5f, 0.0f, 0.0f));
-					updateView = true;
-				}
-				// Zoom
-				if (std::abs(gamePadState.axisRight.y) > deadZone)
-				{
-					camera.translate(glm::vec3(0.0f, 0.0f, gamePadState.axisRight.y * 0.01f));
-					updateView = true;
-				}
-				if (updateView)
-				{
-					viewChanged();
-				}
-			}
-			else
-			{
-				updateView = camera.updatePad(gamePadState.axisLeft, gamePadState.axisRight, frameTimer);
-				if (updateView)
-				{
-					viewChanged();
-				}
-			}
-		}
-	}
-#elif defined(_DIRECT2DISPLAY)
-	while (!quit)
-	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		if (viewUpdated)
-		{
-			viewUpdated = false;
-			viewChanged();
-		}
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
-		if (camera.moving())
-		{
-			viewUpdated = true;
-		}
-		// Convert to clamped timer value
-		if (!paused)
-		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
-			{
-				timer -= 1.0f;
-			}
-		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
-		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
-		}
-		updateOverlay();
-	}
+	swapChain.initSurface(androidApp->window);
+#elif (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
+	swapChain.initSurface(view);
 #elif defined(VK_USE_PLATFORM_DIRECTFB_EXT)
-	while (!quit)
-	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		if (viewUpdated)
-		{
-			viewUpdated = false;
-			viewChanged();
-		}
-		DFBWindowEvent event;
-		while (!event_buffer->GetEvent(event_buffer, DFB_EVENT(&event)))
-		{
-			handleEvent(&event);
-		}
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
-		if (camera.moving())
-		{
-			viewUpdated = true;
-		}
-		// Convert to clamped timer value
-		if (!paused)
-		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
-			{
-				timer -= 1.0f;
-			}
-		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
-		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
-		}
-		updateOverlay();
-	}
+	swapChain.initSurface(dfb, surface);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-	while (!quit)
-	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		if (viewUpdated)
-		{
-			viewUpdated = false;
-			viewChanged();
-		}
-
-		while (!configured)
-			wl_display_dispatch(display);
-		while (wl_display_prepare_read(display) != 0)
-			wl_display_dispatch_pending(display);
-		wl_display_flush(display);
-		wl_display_read_events(display);
-		wl_display_dispatch_pending(display);
-
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
-		if (camera.moving())
-		{
-			viewUpdated = true;
-		}
-		// Convert to clamped timer value
-		if (!paused)
-		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
-			{
-				timer -= 1.0f;
-			}
-		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
-		{
-			if (!settings.overlay)
-			{
-				std::string windowTitle = getWindowTitle();
-				xdg_toplevel_set_title(xdg_toplevel, windowTitle.c_str());
-			}
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
-		}
-		updateOverlay();
-	}
+	swapChain.initSurface(display, surface);
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
-	xcb_flush(connection);
-	while (!quit)
-	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		if (viewUpdated)
-		{
-			viewUpdated = false;
-			viewChanged();
-		}
-		xcb_generic_event_t *event;
-		while ((event = xcb_poll_for_event(connection)))
-		{
-			handleEvent(event);
-			free(event);
-		}
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
-		if (camera.moving())
-		{
-			viewUpdated = true;
-		}
-		// Convert to clamped timer value
-		if (!paused)
-		{
-			timer += timerSpeed * frameTimer;
-			if (timer > 1.0)
-			{
-				timer -= 1.0f;
-			}
-		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
-		{
-			if (!settings.overlay)
-			{
-				std::string windowTitle = getWindowTitle();
-				xcb_change_property(connection, XCB_PROP_MODE_REPLACE,
-					window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8,
-					windowTitle.size(), windowTitle.c_str());
-			}
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
-		}
-		updateOverlay();
-	}
-#elif defined(VK_USE_PLATFORM_HEADLESS_EXT)
-	while (!quit)
-	{
-		auto tStart = std::chrono::high_resolution_clock::now();
-		if (viewUpdated)
-		{
-			viewUpdated = false;
-			viewChanged();
-		}
-		render();
-		frameCounter++;
-		auto tEnd = std::chrono::high_resolution_clock::now();
-		auto tDiff = std::chrono::duration<double, std::milli>(tEnd - tStart).count();
-		frameTimer = tDiff / 1000.0f;
-		camera.update(frameTimer);
-		if (camera.moving())
-		{
-			viewUpdated = true;
-		}
-		// Convert to clamped timer value
-		timer += timerSpeed * frameTimer;
-		if (timer > 1.0)
-		{
-			timer -= 1.0f;
-		}
-		float fpsTimer = std::chrono::duration<double, std::milli>(tEnd - lastTimestamp).count();
-		if (fpsTimer > 1000.0f)
-		{
-			lastFPS = (float)frameCounter * (1000.0f / fpsTimer);
-			frameCounter = 0;
-			lastTimestamp = tEnd;
-		}
-		updateOverlay();
-	}
-#elif (defined(VK_USE_PLATFORM_MACOS_MVK) && defined(VK_EXAMPLE_XCODE_GENERATED))
-	[NSApp run];
+	swapChain.initSurface(connection, window);
+#elif (defined(_DIRECT2DISPLAY) || defined(VK_USE_PLATFORM_HEADLESS_EXT))
+	swapChain.initSurface(width, height);
+#elif defined(VK_USE_PLATFORM_SCREEN_QNX)
+	swapChain.initSurface(screen_context, screen_window);
 #endif
-	// Flush device to make sure all resources can be freed
-	if (device != VK_NULL_HANDLE) {
-		vkDeviceWaitIdle(device);
-	}
 }
 
-bool VulkanExampleBase::drawUI(const VkCommandBuffer commandBuffer)
+void VulkanExampleBase::setupSwapChain()
 {
-	if (settings.overlay) {
-		const VkViewport viewport = vks::initializers::viewport((float)width, (float)height, 0.0f, 1.0f);
-		const VkRect2D scissor = vks::initializers::rect2D(width, height, 0, 0);
-		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-		return UIOverlay.draw(commandBuffer);
-	}
-	return false;
-}
-
-void VulkanExampleBase::prepareFrame()
-{
-	// Acquire the next image from the swap chain
-	VkResult result = swapChain.acquireNextImage(semaphores.presentComplete, &currentBuffer);
-	// Recreate the swapchain if it's no longer compatible with the surface (OUT_OF_DATE) or no longer optimal for presentation (SUBOPTIMAL)
-	if ((result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
-		resizeWindow();
-	}
-	else {
-		VK_CHECK_RESULT(result);
-	}
-}
-
-void VulkanExampleBase::submitFrame()
-{
-	VkResult result = swapChain.queuePresent(queue, currentBuffer, semaphores.renderComplete);
-	if (!((result == VK_SUCCESS) || (result == VK_SUBOPTIMAL_KHR))) {
-		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			// Swap chain is no longer compatible with the surface and needs to be recreated
-			resizeWindow();
-			return;
-		}
-		else {
-			VK_CHECK_RESULT(result);
-		}
-	}
-	VK_CHECK_RESULT(vkQueueWaitIdle(queue));
-}
-
-void VulkanExampleBase::renderFrame()
-{
-	VulkanExampleBase::prepareFrame();
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &drawCmdBuffers[currentBuffer];
-	VK_CHECK_RESULT(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-	VulkanExampleBase::submitFrame();
+	swapChain.create(&width, &height, settings.vsync);
 }
 
 void VulkanExampleBase::OnUpdateUIOverlay(vks::UIOverlay *overlay) {}
 
-// Command line argument parser class
-
-CommandLineParser::CommandLineParser()
-{
-	add("help", { "--help" }, 0, "Show help");
-	add("validation", {"-v", "--validation"}, 0, "Enable validation layers");
-	add("vsync", {"-vs", "--vsync"}, 0, "Enable V-Sync");
-	add("fullscreen", { "-f", "--fullscreen" }, 0, "Start in fullscreen mode");
-	add("width", { "-w", "--width" }, 1, "Set window width");
-	add("height", { "-h", "--height" }, 1, "Set window height");
-	add("shaders", { "-s", "--shaders" }, 1, "Select shader type to use (glsl or hlsl)");
-	add("gpuselection", { "-g", "--gpu" }, 1, "Select GPU to run on");
-	add("gpulist", { "-gl", "--listgpus" }, 0, "Display a list of available Vulkan devices");
-	add("benchmark", { "-b", "--benchmark" }, 0, "Run example in benchmark mode");
-	add("benchmarkwarmup", { "-bw", "--benchwarmup" }, 1, "Set warmup time for benchmark mode in seconds");
-	add("benchmarkruntime", { "-br", "--benchruntime" }, 1, "Set duration time for benchmark mode in seconds");
-	add("benchmarkresultfile", { "-bf", "--benchfilename" }, 1, "Set file name for benchmark results");
-	add("benchmarkresultframes", { "-bt", "--benchframetimes" }, 0, "Save frame times to benchmark results file");
-	add("benchmarkframes", { "-bfs", "--benchmarkframes" }, 1, "Only render the given number of frames");
-}
-
-void CommandLineParser::add(std::string name, std::vector<std::string> commands, bool hasValue, std::string help)
-{
-	options[name].commands = commands;
-	options[name].help = help;
-	options[name].set = false;
-	options[name].hasValue = hasValue;
-	options[name].value = "";
-}
-
-void CommandLineParser::printHelp()
-{
-	std::cout << "Available command line options:\n";
-	for (auto option : options) {
-		std::cout << " ";
-		for (size_t i = 0; i < option.second.commands.size(); i++) {
-			std::cout << option.second.commands[i];
-			if (i < option.second.commands.size() - 1) {
-				std::cout << ", ";
-			}
-		}
-		std::cout << ": " << option.second.help << "\n";
-	}
-	std::cout << "Press any key to close...";
-}
-
-void CommandLineParser::parse(std::vector<const char*> arguments)
-{
-	bool printHelp = false;
-	// Known arguments
-	for (auto& option : options) {
-		for (auto& command : option.second.commands) {
-			for (size_t i = 0; i < arguments.size(); i++) {
-				if (strcmp(arguments[i], command.c_str()) == 0) {
-					option.second.set = true;
-					// Get value
-					if (option.second.hasValue) {
-						if (arguments.size() > i + 1) {
-							option.second.value = arguments[i + 1];
-						}
-						if (option.second.value == "") {
-							printHelp = true;
-							break;
-						}
-					}
-				}
-			}
-		}
-	}
-	// Print help for unknown arguments or missing argument values
-	if (printHelp) {
-		options["help"].set = true;
-	}
-}
-
-bool CommandLineParser::isSet(std::string name)
-{
-	return ((options.find(name) != options.end()) && options[name].set);
-}
-
-std::string CommandLineParser::getValueAsString(std::string name, std::string defaultValue)
-{
-	assert(options.find(name) != options.end());
-	std::string value = options[name].value;
-	return (value != "") ? value : defaultValue;
-}
-
-int32_t CommandLineParser::getValueAsInt(std::string name, int32_t defaultValue)
-{
-	assert(options.find(name) != options.end());
-	std::string value = options[name].value;
-	if (value != "") {
-		char* numConvPtr;
-		int32_t intVal = strtol(value.c_str(), &numConvPtr, 10);
-		return (intVal > 0) ? intVal : defaultValue;
-	} else {
-		return defaultValue;
-	}
-}
+#if defined(_WIN32)
+void VulkanExampleBase::OnHandleMessage(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {};
+#endif
